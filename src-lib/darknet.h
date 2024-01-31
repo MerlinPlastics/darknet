@@ -1000,6 +1000,7 @@ typedef struct load_args {
 	image *resized;
 	data_type type;
 	tree *hierarchy;
+	int file_per_channel;
 } load_args;
 
 

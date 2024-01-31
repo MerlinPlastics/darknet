@@ -136,13 +136,13 @@ cv::Mat load_image_mat(char *filename, int channels)
 	{
 		flag = cv::IMREAD_GRAYSCALE;
 	}
-	else if (channels == 3)
+	else if (channels == 3 || channels == 4)
 	{
 		flag = cv::IMREAD_COLOR;
 	}
 	else
 	{
-		darknet_fatal_error(DARKNET_LOC, "OpenCV cannot load an image with %d channels: %s", channels, filename);
+		//darknet_fatal_error(DARKNET_LOC, "OpenCV cannot load an image with %d channels: %s", channels, filename);		
 	}
 
 	cv::Mat * mat_ptr = reinterpret_cast<cv::Mat*>(load_image_mat_cv(filename, flag));
@@ -256,7 +256,9 @@ image mat_to_image(cv::Mat mat)
 	for (int y = 0; y < h; ++y) {
 		for (int k = 0; k < c; ++k) {
 			for (int x = 0; x < w; ++x) {
-				im.data[k*w*h + y*w + x] = data[y*step + x*c + k] / 255.0f;
+				// In order: color (k), row (y), then column (x)
+				// Each value is stored as a single dimension float (4 byte)
+				im.data[k*w*h + y*w + x] = data[y*step + x*c + k] / 255.0f;	
 			}
 		}
 	}

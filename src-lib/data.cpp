@@ -1611,12 +1611,12 @@ void *load_thread(void *ptr)
     }
     else if (a.type == IMAGE_DATA)
     {
-        *(a.im) = load_image(a.path, 0, 0, a.c);
+        *(a.im) = load_image(a.path, 0, 0, a.c, a.file_per_channel);
         *(a.resized) = resize_image(*(a.im), a.w, a.h);
     }
     else if (a.type == LETTERBOX_DATA)
     {
-        *(a.im) = load_image(a.path, 0, 0, a.c);
+        *(a.im) = load_image(a.path, 0, 0, a.c, a.file_per_channel);
         *(a.resized) = letterbox_image(*(a.im), a.w, a.h);
     }
     else if (a.type == TAG_DATA)

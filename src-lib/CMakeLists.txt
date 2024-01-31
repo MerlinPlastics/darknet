@@ -11,6 +11,7 @@ CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/darknet_version.h.in ${CMAKE_CURRENT
 # ==
 FILE (GLOB LIBSRC *.cpp)
 LIST (REMOVE_ITEM LIBSRC yolo_v2_class.cpp)
+LIST (REMOVE_ITEM LIBSRC darknetdotnet.cpp)
 
 IF (DARKNET_USE_CUDA)
 	FILE (GLOB CUDASRC *.cu)
@@ -60,9 +61,16 @@ INSTALL (TARGETS darknet LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION inclu
 # the old Linux Makefile ever tried to build this on Linux.
 # ==
 IF (WIN32)
-	MESSAGE(STATUS "Setting up YOLO V2 LIB")
-	ADD_LIBRARY (yolo_v2_class SHARED yolo_v2_class.cpp)
-	SET_TARGET_PROPERTIES (yolo_v2_class PROPERTIES PUBLIC_HEADER "yolo_v2_class.hpp")
-	TARGET_LINK_LIBRARIES (yolo_v2_class PRIVATE ${DARKNET_LINK_LIBS} darknet)
-	INSTALL (TARGETS yolo_v2_class LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include)
+	#MESSAGE(STATUS "Setting up YOLO V2 LIB")
+	#ADD_LIBRARY (yolo_v2_class SHARED yolo_v2_class.cpp)
+	#SET_TARGET_PROPERTIES (yolo_v2_class PROPERTIES PUBLIC_HEADER "yolo_v2_class.hpp")
+	#TARGET_LINK_LIBRARIES (yolo_v2_class PRIVATE ${DARKNET_LINK_LIBS} darknet)
+	#INSTALL (TARGETS yolo_v2_class LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include)
+	
+	# MESSAGE(STATUS "Setting up DarkentDotNet LIB")
+	# ADD_LIBRARY (darknetdotnet SHARED darknetdotnet.cpp)
+	# SET_TARGET_PROPERTIES (darknetdotnet PROPERTIES PUBLIC_HEADER "darknetdotnet.hpp")
+	# SET_TARGET_PROPERTIES (darknetdotnet PROPERTIES COMMON_LANGUAGE_RUNTIME "" COMMON_LANGUAGE_RUNTIME "netcore" DOTNET_TARGET_FRAMEWORK "net8.0")
+	# TARGET_LINK_LIBRARIES (darknetdotnet PRIVATE darknetobjlib)
+	# INSTALL (TARGETS darknetdotnet LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include)
 ENDIF ()
