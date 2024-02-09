@@ -2197,7 +2197,7 @@ void run_detector(int argc, char **argv)
 	char * datacfg	= nullptr;
 	char * cfg		= nullptr;
 	char * weights	= nullptr;
-	char * input_fn	= nullptr; // if we're passing in an image for example
+	char * filename	= nullptr; // if we're passing in an image for example
 
 	std::string fn1 = cfg_and_state.data_filename		.string();
 	std::string fn2 = cfg_and_state.cfg_filename		.string();
@@ -2211,15 +2211,15 @@ void run_detector(int argc, char **argv)
 	if (not fn1.empty())	{ datacfg	= const_cast<char*>(fn1.c_str()); }
 	if (not fn2.empty())	{ cfg		= const_cast<char*>(fn2.c_str()); }
 	if (not fn3.empty())	{ weights	= const_cast<char*>(fn3.c_str()); }
-	if (not fn4.empty())	{ input_fn	= const_cast<char*>(fn4.c_str()); }
+	if (not fn4.empty())	{ filename	= const_cast<char*>(fn4.c_str()); }
 
-	if		(cfg_and_state.function == "test"		) { test_detector(datacfg, cfg, weights, input_fn, thresh, hier_thresh, dont_show, ext_output, save_labels, outfile, letter_box, benchmark_layers); }
+	if		(cfg_and_state.function == "test"		) { test_detector(datacfg, cfg, weights, filename, thresh, hier_thresh, dont_show, ext_output, save_labels, outfile, letter_box, benchmark_layers); }
 	else if (cfg_and_state.function == "train"		) { train_detector(datacfg, cfg, weights, gpus, ngpus, clear, dont_show, calc_map, thresh, iou_thresh, mjpeg_port, show_imgs, benchmark_layers, chart_path); }
 	else if (cfg_and_state.function == "valid"		) { validate_detector(datacfg, cfg, weights, outfile); }
 	else if (cfg_and_state.function == "recall"		) { validate_detector_recall(datacfg, cfg, weights); }
 	else if (cfg_and_state.function == "map"		) { validate_detector_map(datacfg, cfg, weights, thresh, iou_thresh, map_points, letter_box, NULL); }
 	else if (cfg_and_state.function == "calcanchors") { calc_anchors(datacfg, num_of_clusters, width, height, show); }
-	else if (cfg_and_state.function == "draw"		) { draw_object(datacfg, cfg, weights, input_fn, thresh, dont_show, 100, letter_box, benchmark_layers); }
+	else if (cfg_and_state.function == "draw"		) { draw_object(datacfg, cfg, weights, filename, thresh, dont_show, 100, letter_box, benchmark_layers); }
 	else if (cfg_and_state.function == "demo"		)
 	{
 		/* Examples:
@@ -2231,11 +2231,11 @@ void run_detector(int argc, char **argv)
 		int classes = option_find_int(options, "classes", 20);
 		char *name_list = option_find_str(options, "names", "data/names.list");
 		char **names = get_labels(name_list);
-		if (input_fn)
+		if (filename)
 		{
-			if (strlen(input_fn) > 0)
+			if (strlen(filename) > 0)
 			{
-				demo(cfg, weights, thresh, hier_thresh, cam_index, input_fn, names, classes, avgframes, frame_skip, prefix, out_filename, mjpeg_port, dontdraw_bbox, json_port, dont_show, ext_output, letter_box, time_limit_sec, http_post_host, benchmark, benchmark_layers);
+				demo(cfg, weights, thresh, hier_thresh, cam_index, filename, names, classes, avgframes, frame_skip, prefix, out_filename, mjpeg_port, dontdraw_bbox, json_port, dont_show, ext_output, letter_box, time_limit_sec, http_post_host, benchmark, benchmark_layers);
 			}
 		}
 		free_list_contents_kvp(options);

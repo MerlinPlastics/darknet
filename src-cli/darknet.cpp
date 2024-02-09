@@ -13,19 +13,12 @@ extern void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, c
 extern void run_voxel(int argc, char **argv);
 extern void run_yolo(int argc, char **argv);
 extern void run_detector(int argc, char **argv);
-extern void run_coco(int argc, char **argv);
-extern void run_writing(int argc, char **argv);
 extern void run_captcha(int argc, char **argv);
-extern void run_nightmare(int argc, char **argv);
-extern void run_dice(int argc, char **argv);
 extern void run_compare(int argc, char **argv);
 extern void run_classifier(int argc, char **argv);
 extern void run_char_rnn(int argc, char **argv);
-extern void run_vid_rnn(int argc, char **argv);
 extern void run_tag(int argc, char **argv);
 extern void run_cifar(int argc, char **argv);
-extern void run_go(int argc, char **argv);
-extern void run_art(int argc, char **argv);
 extern void run_super(int argc, char **argv);
 
 void average(int argc, char *argv[])
@@ -497,21 +490,16 @@ int main(int argc, char **argv)
 
 		if		(cfg_and_state.command.empty())				{ Darknet::display_usage();			}
 		else if (cfg_and_state.command == "3d")				{ composite_3d		(argv[2], argv[3], argv[4], (argc > 5) ? atof(argv[5]) : 0); }
-		else if (cfg_and_state.command == "art")			{ run_art			(argc, argv);	}
 		else if (cfg_and_state.command == "average")		{ average			(argc, argv);	}
 		else if (cfg_and_state.command == "captcha")		{ run_captcha		(argc, argv);	}
 		else if (cfg_and_state.command == "cifar")			{ run_cifar			(argc, argv);	}
 		else if (cfg_and_state.command == "classify")		{ predict_classifier("cfg/imagenet1k.data", argv[2], argv[3], argv[4], 5); }
 		else if (cfg_and_state.command == "classifier")		{ run_classifier	(argc, argv);	}
-		else if (cfg_and_state.command == "coco")			{ run_coco			(argc, argv);	}
 		else if (cfg_and_state.command == "compare")		{ run_compare		(argc, argv);	}
 		else if (cfg_and_state.command == "denormalize")	{ denormalize_net	(argv[2], argv[3], argv[4]); }
 		else if (cfg_and_state.command == "detector")		{ run_detector		(argc, argv);	}
-		else if (cfg_and_state.command == "dice")			{ run_dice			(argc, argv);	}
 		else if (cfg_and_state.command == "imtest")			{ test_resize		(argv[2]);		}
-		else if (cfg_and_state.command == "go")				{ run_go			(argc, argv);	}
 		else if (cfg_and_state.command == "help")			{ Darknet::display_usage();			}
-		else if (cfg_and_state.command == "nightmare")		{ run_nightmare		(argc, argv);	}
 		else if (cfg_and_state.command == "normalize")		{ normalize_net		(argv[2], argv[3], argv[4]); }
 		else if (cfg_and_state.command == "oneoff")			{ oneoff			(argv[2], argv[3], argv[4]); }
 		else if (cfg_and_state.command == "ops")			{ operations		(argv[2]); }
@@ -526,10 +514,8 @@ int main(int argc, char **argv)
 		else if (cfg_and_state.command == "tag")			{ run_tag			(argc, argv);	}
 		else if (cfg_and_state.command == "test")			{ test_resize		(argv[2]);		}
 		else if (cfg_and_state.command == "version")		{ /* nothing else to do, we've already displayed the version information */ }
-		else if (cfg_and_state.command == "vid")			{ run_vid_rnn		(argc, argv);	}
 		else if (cfg_and_state.command == "visualize")		{ visualize			(argv[2], (argc > 3) ? argv[3] : 0); }
 		else if (cfg_and_state.command == "voxel")			{ run_voxel			(argc, argv);	}
-		else if (cfg_and_state.command == "writing")		{ run_writing		(argc, argv);	}
 		else if (cfg_and_state.command == "yolo")			{ run_yolo			(argc, argv);	}
 		else if (cfg_and_state.command == "detect")
 		{
