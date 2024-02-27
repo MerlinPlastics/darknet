@@ -110,7 +110,7 @@ static int streamInit[16] = { 0 };
 cudaStream_t get_cuda_stream() {
 	int i = cuda_get_device();
 	if (!streamInit[i]) {
-		printf("Create CUDA-stream - %d \n", i);
+		printf("Create CUDA-stream - %d \n", i);	// This line causes the network print to be inconsistent on the 0th layer
 #ifdef CUDNN
 		cudaError_t status = cudaStreamCreateWithFlags(&streamsArray[i], cudaStreamNonBlocking);
 #else
@@ -165,7 +165,7 @@ cudnnHandle_t cudnn_handle()
 		cudnnInit[i] = 1;
 		cudnnStatus_t status = cudnnSetStream(cudnnHandle[i], get_cuda_stream());
 		CHECK_CUDNN(status);
-		printf(" Create cudnn-handle %d \n", i);
+		//printf(" Create cudnn-handle %d \n", i);
 	}
 	return cudnnHandle[i];
 }
@@ -309,7 +309,7 @@ cudaStream_t switch_stream(int i) {
 		CHECK_CUDNN( cudnnCreate(&switchCudnnHandle[i]) );
 		switchCudnnInit[i] = 1;
 		CHECK_CUDNN(cudnnSetStream(switchCudnnHandle[i], switchStreamsArray[i]));
-		printf(" Create cudnn-handle %d \n", i);
+		//printf(" Create cudnn-handle %d \n", i);
 	}
 	cudnnHandle[dev_id] = switchCudnnHandle[i];
 	cudnnInit[dev_id] = switchCudnnInit[i];
