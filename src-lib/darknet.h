@@ -687,7 +687,7 @@ typedef enum {
 
 // network.h
 typedef struct network {
-	int n;
+	int n;									/// The number of layers in the network
 	int batch;
 	uint64_t *seen;
 	float *badlabels_reject_threshold;
@@ -742,13 +742,15 @@ typedef struct network {
 	int outputs;
 	int truths;
 	int notruth;
-	int h, w, c;
+	int h;									/// The height for the network input.  Must be divisible by 32.
+	int w;									/// The width for the network input.  Must be divisible by 32.
+	int c;									/// The number of channels for the network input
 	int max_crop;
 	int min_crop;
 	float max_ratio;
 	float min_ratio;
 	int center;
-	int flip; // horizontal flip 50% probability augmentaiont for classifier training (default = 1)
+	int flip;								/// horizontal flip 50% probability augmentaiont for classifier training (default = 1)
 	int gaussian_noise;
 	int blur;
 	int mixup;
@@ -789,9 +791,6 @@ typedef struct network {
 	float *cost;
 	float clip;
 
-//#ifdef GPU
-	//float *input_gpu;
-	//float *truth_gpu;
 	float *delta_gpu;
 	float *output_gpu;
 
@@ -815,7 +814,7 @@ typedef struct network {
 	float *global_delta_gpu;
 	float *state_delta_gpu;
 	size_t max_delta_gpu_size;
-//#endif  // GPU
+
 	int optimized_memory;
 	int dynamic_minibatch;
 	size_t workspace_size_limit;
@@ -832,15 +831,6 @@ typedef struct network_state {
 	network net;
 } network_state;
 
-//typedef struct {
-//    int w;
-//    int h;
-//    float scale;
-//    float rad;
-//    float dx;
-//    float dy;
-//    float aspect;
-//} augment_args;
 
 // image.h
 typedef struct image {
@@ -849,13 +839,6 @@ typedef struct image {
 	int c;
 	float *data;
 } image;
-
-//typedef struct {
-//    int w;
-//    int h;
-//    int c;
-//    float *data;
-//} image;
 
 // box.h
 typedef struct box {
@@ -882,16 +865,16 @@ typedef struct ious {
 
 // box.h
 typedef struct detection{
-	box bbox;
+	box bbox;								/// Bounding box of the detection
 	int classes;
 	int best_class_idx;
 	float *prob;
 	float *mask;
 	float objectness;
 	int sort_class;
-	float *uc; // Gaussian_YOLOv3 - tx,ty,tw,th uncertainty
-	int points; // bit-0 - center, bit-1 - top-left-corner, bit-2 - bottom-right-corner
-	float *embeddings;  // embeddings for tracking
+	float *uc;								/// Gaussian_YOLOv3 - tx,ty,tw,th uncertainty
+	int points;								/// For Gaussian: bit-0 - center, bit-1 - top-left-corner, bit-2 - bottom-right-corner
+	float *embeddings;						/// embeddings for tracking
 	int embedding_size;
 	float sim;
 	int track_id;

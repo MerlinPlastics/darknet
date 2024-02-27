@@ -655,6 +655,8 @@ int send_http_post_request(char *http_post_host, int server_port, const char *vi
 static std::chrono::steady_clock::time_point steady_start, steady_end;
 static double total_time;
 
+/// Returns the a monotonic clock in microseconds.  Does NOT represent wall clock time, and is best
+/// used for duration timers
 double get_time_point() {
     std::chrono::steady_clock::time_point current_time = std::chrono::steady_clock::now();
     //uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(current_time.time_since_epoch()).count();
