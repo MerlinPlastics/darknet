@@ -742,18 +742,16 @@ typedef struct network {
 	int outputs;
 	int truths;
 	int notruth;
-	/// The height of the network.  Must be divisible by @p 32.  E.g, @p 480.
-	int h;
-	/// The width of the network.  Must be divisible by @p 32.  E.g., @p 640.
-	int w;
-	/// The number of channels for the network.  Typically @p 3 when working with RGB images.
-	int c;
+	
+	int h;					///< The height of the network.  Must be divisible by @p 32.  E.g, @p 480.
+	int w;					///< The width of the network.  Must be divisible by @p 32.  E.g., @p 640.
+	int c;					///< The number of channels for the network.  Typically @p 3 when working with RGB images.
 	int max_crop;
 	int min_crop;
 	float max_ratio;
 	float min_ratio;
 	int center;
-	int flip; ///< horizontal flip 50% probability augmentaiont for classifier training (default = 1)
+	int flip;				///< horizontal flip 50% probability augmentaiont for classifier training (default = 1)
 	int gaussian_noise;
 	int blur;
 	int mixup;
@@ -769,11 +767,11 @@ typedef struct network {
 	int contrastive_jit_flip;
 	int contrastive_color;
 	int unsupervised;
-	float angle;
-	float aspect;
-	float exposure;
-	float saturation;
-	float hue;
+	float angle;			///< Training data augmentation will rotate images between -angle & +angle DEGREES.  The image is cropped to original size after augmentation.
+	float aspect;		
+	float exposure;			///< Training data augmentation will expose image between [0, exposure) using HSV scale.
+	float saturation;       ///< Training data augmentation will saturate image between [0, saturation)  using HSV scale.  Does not apply to monocolor images.
+	float hue;				///< Training data augmentation will adjust the hue of the image between [-hue, hue] on a 256-point hue circle.  Does not apply to monocolor images.
 	int random;
 	int track;
 	int augment_speed;
