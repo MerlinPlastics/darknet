@@ -9,15 +9,6 @@
 extern "C" {
 #endif
 
-#ifndef OPENCV
-
-void show_opencv_info();
-int wait_key_cv(int delay);
-int wait_until_press_key_cv();
-void destroy_all_windows_cv();
-void resize_window_cv(char const* window_name, int width, int height);
-
-#else // OPENCV
 
 /// Hide a C++ cv::Mat object as a C style @p void* pointer.
 typedef void* mat_cv;
@@ -121,11 +112,10 @@ image blur_image(image src_img, int ksize);
 void cv_draw_object(image sized, float *truth_cpu, int max_boxes, int num_truth, int *it_num_set, float *lr_set, int *boxonly, int classes, char **names);
 
 // Show Anchors
-void show_acnhors(int number_of_boxes, int num_of_clusters, float *rel_width_height_array, model anchors_data, int width, int height);
+void show_anchors(int number_of_boxes, int num_of_clusters, float *rel_width_height_array, model anchors_data, int width, int height);
 
 void show_opencv_info();
 
-#endif  // OPENCV
 
 #ifdef __cplusplus
 }

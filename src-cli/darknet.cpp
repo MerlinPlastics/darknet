@@ -432,9 +432,7 @@ void visualize(char *cfgfile, char *weightfile)
 		load_weights(&net, weightfile);
 	}
 	visualize_network(net);
-#ifdef OPENCV
 	wait_until_press_key_cv();
-#endif
 }
 
 
@@ -469,7 +467,7 @@ int main(int argc, char **argv)
 		signal(SIGQUIT  , darknet_signal_handler);  // 3: quit
 		signal(SIGUSR1  , darknet_signal_handler);  // 10: user-defined
 		signal(SIGUSR2  , darknet_signal_handler);  // 12: user-defined
-		#endif
+#endif
 
 		// process the args before printing anything so we can handle "-colour" and "-nocolour" correctly
 		auto & cfg_and_state = Darknet::CfgAndState::get();

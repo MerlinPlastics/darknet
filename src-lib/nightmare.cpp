@@ -209,7 +209,7 @@ void run_nightmare(int argc, char **argv)
     char *imbase = basecfg(input);
 
     set_batch_network(&net, 1);
-    image im = load_image_color(input, 0, 0);
+    image im = load_image(input, 0, 0, net.c);
     if(0){
         float scale = 1;
         if(im.w > 512 || im.h > 512){
@@ -263,9 +263,7 @@ void run_nightmare(int argc, char **argv)
                 reconstruct_picture(net, features, im, update, rate, momentum, lambda, smooth_size, 1);
                 //if ((n+1)%30 == 0) rate *= .5;
                 show_image(im, "reconstruction");
-#ifdef OPENCV
                 wait_key_cv(10);
-#endif
             }else{
                 int layer = max_layer + rand()%range - range/2;
                 int octave = rand()%octaves;

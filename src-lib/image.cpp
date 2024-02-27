@@ -34,12 +34,7 @@ static float get_pixel(image m, int x, int y, int c)
 static float get_pixel_extend(image m, int x, int y, int c)
 {
 	if (x < 0 || x >= m.w || y < 0 || y >= m.h) return 0;
-	/*
-	if(x < 0) x = 0;
-	if(x >= m.w) x = m.w-1;
-	if(y < 0) y = 0;
-	if(y >= m.h) y = m.h-1;
-	*/
+
 	if (c < 0 || c >= m.c) return 0;
 	return get_pixel(m, x, y, c);
 }
@@ -129,7 +124,6 @@ image get_opencv_label(const std::string & str, const int area)
 			// looks like this might be a good font scale to use for this object
 			break;
 		}
-
 		// otherwise, try a smaller font scale
 	}
 
@@ -461,14 +455,6 @@ void draw_detections(image im, int num, float thresh, box *boxes, float **probs,
 		float prob = probs[i][class_id];
 		if(prob > thresh){
 
-			//// for comparison with OpenCV version of DNN Darknet Yolo v2
-			//printf("\n %f, %f, %f, %f, ", boxes[i].x, boxes[i].y, boxes[i].w, boxes[i].h);
-			// int k;
-			//for (k = 0; k < classes; ++k) {
-			//    printf("%f, ", probs[i][k]);
-			//}
-			//printf("\n");
-
 			int width = im.h * .012;
 
 			if(0)
@@ -494,16 +480,8 @@ void draw_detections(image im, int num, float thresh, box *boxes, float **probs,
 			if(bot > im.h-1) bot = im.h-1;
 			printf("%s: %.0f%%", names[class_id], prob * 100);
 
-			//printf(" - id: %d, x_center: %d, y_center: %d, width: %d, height: %d",
-			//    class_id, (right + left) / 2, (bot - top) / 2, right - left, bot - top);
-
 			printf("\n");
 			draw_box_width(im, left, top, right, bot, width, red, green, blue);
-//			if (alphabet)
-//			{
-//				image label = get_label(alphabet, names[class_id], (im.h*.03)/10);
-//				draw_label(im, top + width, left, label, rgb);
-//			}
 		}
 	}
 }
@@ -687,12 +665,7 @@ void rgbgr_image(image im)
 
 void show_image(image p, const char *name)
 {
-#ifdef OPENCV
 	show_image_cv(p, name);
-#else
-	fprintf(stderr, "Not compiled with OpenCV, saving to %s.png instead\n", name);
-	save_image(p, name);
-#endif  // OPENCV
 }
 
 void save_image_png(image im, const char *name)
@@ -965,11 +938,8 @@ void composite_3d(char *f1, char *f2, char *out, int delta)
 	for(i = 0; i < c.w*c.h; ++i){
 		c.data[i] = a.data[i];
 	}
-#ifdef OPENCV
+
 	save_image_jpg(c, out);
-#else
-	save_image(c, out);
-#endif
 }
 
 void fill_image(image m, float s)
@@ -1089,6 +1059,7 @@ float three_way_min(float a, float b, float c)
 }
 
 // http://www.cs.rit.edu/~ncs/color/t_convert.html
+/// @todo #COLOR - cannot do HSV if channels > 3
 void rgb_to_hsv(image im)
 {
 	assert(im.c == 3);
@@ -1126,6 +1097,7 @@ void rgb_to_hsv(image im)
 	}
 }
 
+/// @todo #COLOR - cannot do HSV if channels > 3
 void hsv_to_rgb(image im)
 {
 	assert(im.c == 3);
@@ -1234,46 +1206,7 @@ void translate_image_channel(image im, int c, float v)
 	}
 }
 
-image binarize_image(image im)
-{
-	image c = copy_image(im);
-	int i;
-	for(i = 0; i < im.w * im.h * im.c; ++i){
-		if(c.data[i] > .5) c.data[i] = 1;
-		else c.data[i] = 0;
-	}
-	return c;
-}
-
-void saturate_image(image im, float sat)
-{
-	rgb_to_hsv(im);
-	scale_image_channel(im, 1, sat);
-	hsv_to_rgb(im);
-	constrain_image(im);
-}
-
-void hue_image(image im, float hue)
-{
-	rgb_to_hsv(im);
-	int i;
-	for(i = 0; i < im.w*im.h; ++i){
-		im.data[i] = im.data[i] + hue;
-		if (im.data[i] > 1) im.data[i] -= 1;
-		if (im.data[i] < 0) im.data[i] += 1;
-	}
-	hsv_to_rgb(im);
-	constrain_image(im);
-}
-
-void exposure_image(image im, float sat)
-{
-	rgb_to_hsv(im);
-	scale_image_channel(im, 2, sat);
-	hsv_to_rgb(im);
-	constrain_image(im);
-}
-
+/// @todo #COLOR - needs to be fixed for 1 <= c <= N
 void distort_image(image im, float hue, float sat, float val)
 {
 	if (im.c >= 3)
@@ -1296,6 +1229,7 @@ void distort_image(image im, float hue, float sat, float val)
 	constrain_image(im);
 }
 
+/// @todo #COLOR - HSV no beuno
 void random_distort_image(image im, float hue, float saturation, float exposure)
 {
 	float dhue = rand_uniform_strong(-hue, hue);
@@ -1304,14 +1238,6 @@ void random_distort_image(image im, float hue, float saturation, float exposure)
 	distort_image(im, dhue, dsat, dexp);
 }
 
-void saturate_exposure_image(image im, float sat, float exposure)
-{
-	rgb_to_hsv(im);
-	scale_image_channel(im, 1, sat);
-	scale_image_channel(im, 2, exposure);
-	hsv_to_rgb(im);
-	constrain_image(im);
-}
 
 float bilinear_interpolate(image im, float x, float y, int c)
 {
@@ -1332,7 +1258,7 @@ void quantize_image(image im)
 {
 	int size = im.c * im.w * im.h;
 	int i;
-	for (i = 0; i < size; ++i) im.data[i] = (int)(im.data[i] * 255) / 255. + (0.5/255);
+	for (i = 0; i < size; ++i) im.data[i] = (int)(im.data[i] * 255) / 255. + (0.5 / 255);
 }
 
 void make_image_red(image im)
@@ -1383,8 +1309,6 @@ image make_attention_image(int img_size, float *original_delta_cpu, float *origi
 	free_image(resized);
 	for (k = 0; k < img_size; ++k) attention_img.data[k] = attention_img.data[k]*alpha + (1-alpha)*original_input_cpu[k];
 
-	//normalize_image(attention_img);
-	//show_image(attention_img, "delta");
 	return attention_img;
 }
 
@@ -1459,7 +1383,6 @@ void test_resize(char *filename)
 	show_image(c3, "C3");
 	show_image(c4, "C4");
 
-#ifdef OPENCV
 	while(1){
 		image aug = random_augment_image(im, 0, .75, 320, 448, 320);
 		show_image(aug, "aug");
@@ -1482,67 +1405,12 @@ void test_resize(char *filename)
 		free_image(c);
 		wait_until_press_key_cv();
 	}
-#endif
 }
 
-
-#if 0
-image load_image_stb(char *filename, int channels)
-{
-	int w, h, c;
-	unsigned char *data = stbi_load(filename, &w, &h, &c, channels);
-	if (!data)
-	{
-		char short_filename[1024];
-		if (strlen(filename) >= 1024)
-		{
-			sprintf(short_filename, "name is too long");
-		}
-		else
-		{
-			sprintf(short_filename, "%s", filename);
-		}
-
-		darknet_fatal_error(DARKNET_LOC, "failed to load image: STB=%s filename=\"%s\"", stbi_failure_reason(), short_filename);
-	}
-	if(channels) c = channels;
-	int i,j,k;
-	image im = make_image(w, h, c);
-	for(k = 0; k < c; ++k){
-		for(j = 0; j < h; ++j){
-			for(i = 0; i < w; ++i){
-				int dst_index = i + w*j + w*h*k;
-				int src_index = k + c*i + c*w*j;
-				im.data[dst_index] = (float)data[src_index]/255.;
-			}
-		}
-	}
-	free(data);
-	return im;
-}
-#endif
-
-#if 0
-image load_image_stb_resize(char *filename, int w, int h, int c)
-{
-	image out = load_image_stb(filename, c);    // without OpenCV
-
-	if ((h && w) && (h != out.h || w != out.w)) {
-		image resized = resize_image(out, w, h);
-		free_image(out);
-		out = resized;
-	}
-	return out;
-}
-#endif
 
 image load_image(char * filename, int desired_width, int desired_height, int channels)
 {
-#ifdef OPENCV
 	image out = load_image_cv(filename, channels);
-#else
-	image out = load_image_stb(filename, channels); // without OpenCV
-#endif
 
 	if (desired_height > 0 && desired_width > 0 && (desired_height != out.h || desired_width != out.w))
 	{
@@ -1551,11 +1419,6 @@ image load_image(char * filename, int desired_width, int desired_height, int cha
 		out = resized;
 	}
 	return out;
-}
-
-image load_image_color(char *filename, int w, int h)
-{
-	return load_image(filename, w, h, 3);
 }
 
 image get_image_layer(image m, int l)
@@ -1639,8 +1502,8 @@ image collapse_images_horz(image *ims, int n)
 	for(i = 0; i < n; ++i){
 		int w_offset = i*(size+border);
 		image copy = copy_image(ims[i]);
-		//normalize_image(copy);
-		if(c == 3 && color){
+
+		if(c == 3 && color){	///< @todo #COLOR
 			embed_image(copy, filters, w_offset, 0);
 		}
 		else{
@@ -1667,15 +1530,7 @@ void show_image_normalized(image im, const char *name)
 void show_images(image *ims, int n, char *window)
 {
 	image m = collapse_images_vert(ims, n);
-	/*
-	int w = 448;
-	int h = ((float)m.h/m.w) * 448;
-	if(h > 896){
-	h = 896;
-	w = ((float)m.w/m.h) * 896;
-	}
-	image sized = resize_image(m, w, h);
-	*/
+
 	normalize_image(m);
 	save_image(m, window);
 	show_image(m, window);

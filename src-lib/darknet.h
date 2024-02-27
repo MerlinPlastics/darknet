@@ -687,7 +687,7 @@ typedef enum {
 
 // network.h
 typedef struct network {
-	int n;									/// The number of layers in the network
+	int n;
 	int batch;
 	uint64_t *seen;
 	float *badlabels_reject_threshold;
@@ -742,15 +742,18 @@ typedef struct network {
 	int outputs;
 	int truths;
 	int notruth;
-	int h;									/// The height for the network input.  Must be divisible by 32.
-	int w;									/// The width for the network input.  Must be divisible by 32.
-	int c;									/// The number of channels for the network input
+	/// The height of the network.  Must be divisible by @p 32.  E.g, @p 480.
+	int h;
+	/// The width of the network.  Must be divisible by @p 32.  E.g., @p 640.
+	int w;
+	/// The number of channels for the network.  Typically @p 3 when working with RGB images.
+	int c;
 	int max_crop;
 	int min_crop;
 	float max_ratio;
 	float min_ratio;
 	int center;
-	int flip;								/// horizontal flip 50% probability augmentaiont for classifier training (default = 1)
+	int flip; ///< horizontal flip 50% probability augmentaiont for classifier training (default = 1)
 	int gaussian_noise;
 	int blur;
 	int mixup;
@@ -791,6 +794,9 @@ typedef struct network {
 	float *cost;
 	float clip;
 
+//#ifdef GPU
+	//float *input_gpu;
+	//float *truth_gpu;
 	float *delta_gpu;
 	float *output_gpu;
 
@@ -814,7 +820,7 @@ typedef struct network {
 	float *global_delta_gpu;
 	float *state_delta_gpu;
 	size_t max_delta_gpu_size;
-
+//#endif  // GPU
 	int optimized_memory;
 	int dynamic_minibatch;
 	size_t workspace_size_limit;
@@ -830,7 +836,6 @@ typedef struct network_state {
 	int index;
 	network net;
 } network_state;
-
 
 // image.h
 typedef struct image {
@@ -865,16 +870,16 @@ typedef struct ious {
 
 // box.h
 typedef struct detection{
-	box bbox;								/// Bounding box of the detection
+	box bbox;
 	int classes;
 	int best_class_idx;
 	float *prob;
 	float *mask;
 	float objectness;
 	int sort_class;
-	float *uc;								/// Gaussian_YOLOv3 - tx,ty,tw,th uncertainty
-	int points;								/// For Gaussian: bit-0 - center, bit-1 - top-left-corner, bit-2 - bottom-right-corner
-	float *embeddings;						/// embeddings for tracking
+	float *uc; ///< Gaussian_YOLOv3 - tx,ty,tw,th uncertainty
+	int points; ///< bit-0 - center, bit-1 - top-left-corner, bit-2 - bottom-right-corner
+	float *embeddings;  ///< embeddings for tracking
 	int embedding_size;
 	float sim;
 	int track_id;
@@ -943,7 +948,7 @@ typedef struct load_args {
 	char **labels;
 	int h;
 	int w;
-	int c; // color depth
+	int c;	///< Number of channels, typically 3 for RGB
 	int out_w;
 	int out_h;
 	int nh;
@@ -962,7 +967,6 @@ typedef struct load_args {
 	int letter_box;
 	int mosaic_bound;
 	int show_imgs;
-	int dontuse_opencv;
 	int contrastive;
 	int contrastive_jit_flip;
 	int contrastive_color;
@@ -994,19 +998,6 @@ typedef struct box_label {
 	float left, right, top, bottom;
 } box_label;
 
-// list.h
-//typedef struct node {
-//    void *val;
-//    struct node *next;
-//    struct node *prev;
-//} node;
-
-// list.h
-//typedef struct list {
-//    int size;
-//    node *front;
-//    node *back;
-//} list;
 // -----------------------------------------------------
 
 

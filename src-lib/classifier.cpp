@@ -32,7 +32,7 @@ float *get_regression_values(char **labels, int n)
 	return v;
 }
 
-void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus, int ngpus, int clear, int dontuse_opencv, int dont_show, int mjpeg_port, int calc_topk, int show_imgs, char* chart_path)
+void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus, int ngpus, int clear, int dont_show, int mjpeg_port, int calc_topk, int show_imgs, char* chart_path)
 {
 	int i;
 
@@ -101,7 +101,6 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 	args.hierarchy = net.hierarchy;
 
 	args.contrastive = net.contrastive;
-	args.dontuse_opencv = dontuse_opencv;
 	args.min = net.min_crop;
 	args.max = net.max_crop;
 	args.flip = net.flip;
@@ -125,7 +124,6 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 	args.labels = labels;
 	args.type = CLASSIFICATION_DATA;
 
-#ifdef OPENCV
 	//args.threads = 3;
 	mat_cv* img = NULL;
 	float max_img_loss = net.max_chart_loss;
@@ -133,13 +131,10 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 	int img_size = 1000;
 	char windows_name[100];
 	sprintf(windows_name, "chart_%s.png", base);
-	if (!dontuse_opencv)
-	{
-		// This draws the initial blank chart.  Then see the call to update_train_loss_chart() below.
-		img = draw_initial_train_chart(windows_name, max_img_loss, net.max_batches, number_of_lines, img_size, dont_show, chart_path);
-	}
-#endif  //OPENCV
 
+	// This draws the initial blank chart.  Then see the call to update_train_loss_chart() below.
+	img = draw_initial_train_chart(windows_name, max_img_loss, net.max_batches, number_of_lines, img_size, dont_show, chart_path);
+	
 	data train;
 	data buffer;
 	pthread_t load_thread;
@@ -216,8 +211,8 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 		if (avg_time < 0) avg_time = time_remaining;
 		else avg_time = alpha_time * time_remaining + (1 -  alpha_time) * avg_time;
 		start = what_time_is_it_now();
-		printf("%d, %.3f: %f, %f avg, %f rate, %lf seconds, %ld images, %f hours left\n", get_current_batch(net), (float)(*net.seen)/ train_images_num, loss, avg_loss, get_current_rate(net), sec(clock()-time), *net.seen, avg_time);
-#ifdef OPENCV
+		printf("%d, %.3f: %f, %f avg, %f rate, %lf seconds, %lld images, %f hours left\n", get_current_batch(net), (float)(*net.seen)/ train_images_num, loss, avg_loss, get_current_rate(net), sec(clock()-time), *net.seen, avg_time);
+
 		if (net.contrastive) {
 			float cur_con_acc = -1;
 			int k;
@@ -226,11 +221,9 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 			if (cur_con_acc >= 0) avg_contrastive_acc = avg_contrastive_acc*0.99 + cur_con_acc * 0.01;
 			printf("  avg_contrastive_acc = %f \n", avg_contrastive_acc);
 		}
-		if (!dontuse_opencv)
-		{
-			update_train_loss_chart(windows_name, img, img_size, avg_loss, max_img_loss, i, net.max_batches, topk, draw_precision, topk_buff, avg_contrastive_acc / 100, dont_show, mjpeg_port, avg_time);
-		}
-#endif  // OPENCV
+
+		update_train_loss_chart(windows_name, img, img_size, avg_loss, max_img_loss, i, net.max_batches, topk, draw_precision, topk_buff, avg_contrastive_acc / 100, dont_show, mjpeg_port, avg_time);
+		
 
 		if (i >= (iter_save + 1000)) {
 			iter_save = i;
@@ -260,10 +253,8 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 	sprintf(buff, "%s/%s_final.weights", backup_directory, base);
 	save_weights(net, buff);
 
-#ifdef OPENCV
 	release_mat(&img);
 	destroy_all_windows_cv();
-#endif
 
 	pthread_join(load_thread, 0);
 	free_data(buffer);
@@ -282,118 +273,6 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 	free_list(options);
 
 }
-
-
-/*
-void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int clear)
-{
-srand(time(0));
-float avg_loss = -1;
-char *base = basecfg(cfgfile);
-printf("%s\n", base);
-network net = parse_network_cfg(cfgfile);
-if(weightfile){
-load_weights(&net, weightfile);
-}
-if(clear) *net.seen = 0;
-
-int imgs = net.batch * net.subdivisions;
-
-printf("Learning Rate: %g, Momentum: %g, Decay: %g\n", net.learning_rate, net.momentum, net.decay);
-list *options = read_data_cfg(datacfg);
-
-char *backup_directory = option_find_str(options, "backup", "/backup/");
-char *label_list = option_find_str(options, "labels", "data/labels.list");
-char *train_list = option_find_str(options, "train", "data/train.list");
-int classes = option_find_int(options, "classes", 2);
-
-char **labels = get_labels(label_list);
-list *plist = get_paths(train_list);
-char **paths = (char **)list_to_array(plist);
-printf("%d\n", plist->size);
-int N = plist->size;
-clock_t time;
-
-load_args args = {0};
-args.w = net.w;
-args.h = net.h;
-args.threads = 8;
-
-args.min = net.min_crop;
-args.max = net.max_crop;
-args.flip = net.flip;
-args.angle = net.angle;
-args.aspect = net.aspect;
-args.exposure = net.exposure;
-args.saturation = net.saturation;
-args.hue = net.hue;
-args.size = net.w;
-args.hierarchy = net.hierarchy;
-
-args.paths = paths;
-args.classes = classes;
-args.n = imgs;
-args.m = N;
-args.labels = labels;
-args.type = CLASSIFICATION_DATA;
-
-data train;
-data buffer;
-pthread_t load_thread;
-args.d = &buffer;
-load_thread = load_data(args);
-
-int epoch = (*net.seen)/N;
-while(get_current_batch(net) < net.max_batches || net.max_batches == 0){
-time=clock();
-
-pthread_join(load_thread, 0);
-train = buffer;
-load_thread = load_data(args);
-
-printf("Loaded: %lf seconds\n", sec(clock()-time));
-time=clock();
-
-#ifdef OPENCV
-if(0){
-int u;
-for(u = 0; u < imgs; ++u){
-	image im = float_to_image(net.w, net.h, 3, train.X.vals[u]);
-	show_image(im, "loaded");
-	cvWaitKey(0);
-}
-}
-#endif
-
-float loss = train_network(net, train);
-free_data(train);
-
-if(avg_loss == -1) avg_loss = loss;
-avg_loss = avg_loss*.9 + loss*.1;
-printf("%d, %.3f: %f, %f avg, %f rate, %lf seconds, %d images\n", get_current_batch(net), (float)(*net.seen)/N, loss, avg_loss, get_current_rate(net), sec(clock()-time), *net.seen);
-if(*net.seen/N > epoch){
-	epoch = *net.seen/N;
-	char buff[256];
-	sprintf(buff, "%s/%s_%d.weights",backup_directory,base, epoch);
-	save_weights(net, buff);
-}
-if(get_current_batch(net)%100 == 0){
-	char buff[256];
-	sprintf(buff, "%s/%s.backup",backup_directory,base);
-	save_weights(net, buff);
-}
-}
-char buff[256];
-sprintf(buff, "%s/%s.weights", backup_directory, base);
-save_weights(net, buff);
-
-free_network(net);
-free_ptrs((void**)labels, classes);
-free_ptrs((void**)paths, plist->size);
-free_list(plist);
-free(base);
-}
-*/
 
 void validate_classifier_crop(char *datacfg, char *filename, char *weightfile)
 {
@@ -504,7 +383,7 @@ void validate_classifier_10(char *datacfg, char *filename, char *weightfile)
 		int w = net.w;
 		int h = net.h;
 		int shift = 32;
-		image im = load_image_color(paths[i], w+shift, h+shift);
+		image im = load_image(paths[i], w+shift, h+shift, net.c);
 		image images[10];
 		images[0] = crop_image(im, -shift, -shift, w, h);
 		images[1] = crop_image(im, shift, -shift, w, h);
@@ -576,7 +455,7 @@ void validate_classifier_full(char *datacfg, char *filename, char *weightfile)
 				break;
 			}
 		}
-		image im = load_image_color(paths[i], 0, 0);
+		image im = load_image(paths[i], 0, 0, net.c);
 		image resized = resize_min(im, size);
 		resize_network(&net, resized.w, resized.h);
 		//show_image(im, "orig");
@@ -653,7 +532,7 @@ float validate_classifier_single(char *datacfg, char *filename, char *weightfile
 				break;
 			}
 		}
-		image im = load_image_color(paths[i], 0, 0);
+		image im = load_image(paths[i], 0, 0, net.c);
 		image resized = resize_min(im, net.w);
 		image crop = crop_image(resized, (resized.w - net.w)/2, (resized.h - net.h)/2, net.w, net.h);
 		//show_image(im, "orig");
@@ -725,7 +604,7 @@ void validate_classifier_multi(char *datacfg, char *filename, char *weightfile)
 			}
 		}
 		float* pred = (float*)xcalloc(classes, sizeof(float));
-		image im = load_image_color(paths[i], 0, 0);
+		image im = load_image(paths[i], 0, 0, net.c);
 		for(j = 0; j < nscales; ++j){
 			image r = resize_min(im, scales[j]);
 			resize_network(&net, r.w, r.h);
@@ -782,7 +661,7 @@ void try_classifier(char *datacfg, char *cfgfile, char *weightfile, char *filena
 			if(!input) break;
 			strtok(input, "\n");
 		}
-		image orig = load_image_color(input, 0, 0);
+		image orig = load_image(input, 0, 0, net.c);
 		image r = resize_min(orig, 256);
 		image im = crop_image(r, (r.w - 224 - 1)/2 + 1, (r.h - 224 - 1)/2 + 1, 224, 224);
 		float mean[] = {0.48263312050943, 0.45230225481413, 0.40099074308742};
@@ -877,7 +756,7 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
 			if(!input) break;
 			strtok(input, "\n");
 		}
-		image im = load_image_color(input, 0, 0);
+		image im = load_image(input, 0, 0, net.c);
 		image resized = resize_min(im, net.w);
 		image cropped = crop_image(resized, (resized.w - net.w)/2, (resized.h - net.h)/2, net.w, net.h);
 		printf("%d %d\n", cropped.w, cropped.h);
@@ -936,7 +815,7 @@ void label_classifier(char *datacfg, char *filename, char *weightfile)
 	free_list(plist);
 
 	for(i = 0; i < m; ++i){
-		image im = load_image_color(paths[i], 0, 0);
+		image im = load_image(paths[i], 0, 0, net.c);
 		image resized = resize_min(im, net.w);
 		image crop = crop_image(resized, (resized.w - net.w)/2, (resized.h - net.h)/2, net.w, net.h);
 		float *pred = network_predict(net, crop.data);
@@ -1028,7 +907,6 @@ void test_classifier(char *datacfg, char *cfgfile, char *weightfile, int target_
 
 void threat_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_index, const char *filename)
 {
-#ifdef OPENCV
 	float threat = 0;
 	float roll = .2;
 
@@ -1166,102 +1044,10 @@ void threat_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_i
 		float curr = 1000000.f/((long int)tval_result.tv_usec);
 		fps = .9*fps + .1*curr;
 	}
-#endif
-}
-
-
-void gun_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_index, const char *filename)
-{
-#ifdef OPENCV_DISABLE
-	int bad_cats[] = {218, 539, 540, 1213, 1501, 1742, 1911, 2415, 4348, 19223, 368, 369, 370, 1133, 1200, 1306, 2122, 2301, 2537, 2823, 3179, 3596, 3639, 4489, 5107, 5140, 5289, 6240, 6631, 6762, 7048, 7171, 7969, 7984, 7989, 8824, 8927, 9915, 10270, 10448, 13401, 15205, 18358, 18894, 18895, 19249, 19697};
-
-	printf("Classifier Demo\n");
-	network net = parse_network_cfg(cfgfile);
-	if(weightfile){
-		load_weights(&net, weightfile);
-	}
-	set_batch_network(&net, 1);
-	list *options = read_data_cfg(datacfg);
-
-	srand(2222222);
-	CvCapture * cap;
-
-	if (filename) {
-		//cap = cvCaptureFromFile(filename);
-		cap = get_capture_video_stream(filename);
-	}
-	else {
-		//cap = cvCaptureFromCAM(cam_index);
-		cap = get_capture_webcam(cam_index);
-	}
-
-	if(!cap)
-	{
-		darknet_fatal_error(DARKNET_LOC, "failed to connect to webcam (%d, %s)", cam_index, filename);
-	}
-
-	int classes = option_find_int(options, "classes", 2);
-	int top = option_find_int(options, "top", 1);
-	if (top > classes) top = classes;
-
-	char *name_list = option_find_str(options, "names", 0);
-	char **names = get_labels(name_list);
-
-	int* indexes = (int*)xcalloc(top, sizeof(int));
-
-	cvNamedWindow("Threat Detection", CV_WINDOW_NORMAL);
-	cvResizeWindow("Threat Detection", 512, 512);
-	float fps = 0;
-	int i;
-
-	while(1){
-		struct timeval tval_before, tval_after, tval_result;
-		gettimeofday(&tval_before, NULL);
-
-		//image in = get_image_from_stream(cap);
-		image in = get_image_from_stream_cpp(cap);
-		image in_s = resize_image(in, net.w, net.h);
-		show_image(in, "Threat Detection");
-
-		float *predictions = network_predict(net, in_s.data);
-		top_predictions(net, top, indexes);
-
-		printf("\033[2J");
-		printf("\033[1;1H");
-
-		int threat = 0;
-		for(i = 0; i < sizeof(bad_cats)/sizeof(bad_cats[0]); ++i){
-			int index = bad_cats[i];
-			if(predictions[index] > .01){
-				printf("Threat Detected!\n");
-				threat = 1;
-				break;
-			}
-		}
-		if(!threat) printf("Scanning...\n");
-		for(i = 0; i < sizeof(bad_cats)/sizeof(bad_cats[0]); ++i){
-			int index = bad_cats[i];
-			if(predictions[index] > .01){
-				printf("%s\n", names[index]);
-			}
-		}
-
-		free_image(in_s);
-		free_image(in);
-
-		cvWaitKey(10);
-
-		gettimeofday(&tval_after, NULL);
-		timersub(&tval_after, &tval_before, &tval_result);
-		float curr = 1000000.f/((long int)tval_result.tv_usec);
-		fps = .9*fps + .1*curr;
-	}
-#endif
 }
 
 void demo_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_index, const char *filename, int benchmark, int benchmark_layers)
 {
-#ifdef OPENCV
 	printf("Classifier Demo\n");
 	network net = parse_network_cfg_custom(cfgfile, 1, 0);
 	if(weightfile){
@@ -1369,7 +1155,6 @@ void demo_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_ind
 			start_time = get_time_point();
 		}
 	}
-#endif
 }
 
 
@@ -1409,7 +1194,6 @@ void run_classifier(int argc, char **argv)
 	int benchmark = find_arg(argc, argv, "-benchmark");
 	int benchmark_layers = find_arg(argc, argv, "-benchmark_layers");
 	if (benchmark_layers) benchmark = 1;
-	int dontuse_opencv = find_arg(argc, argv, "-dontuse_opencv");
 	int show_imgs = find_arg(argc, argv, "-show_imgs");
 	int calc_topk = find_arg(argc, argv, "-topk");
 	int cam_index = find_int_arg(argc, argv, "-c", 0);
@@ -1424,9 +1208,8 @@ void run_classifier(int argc, char **argv)
 	char* chart_path = find_char_arg(argc, argv, "-chart", 0);
 	if(0==strcmp(argv[2], "predict")) predict_classifier(data, cfg, weights, filename, top);
 	else if(0==strcmp(argv[2], "try")) try_classifier(data, cfg, weights, filename, atoi(layer_s));
-	else if(0==strcmp(argv[2], "train")) train_classifier(data, cfg, weights, gpus, ngpus, clear, dontuse_opencv, dont_show, mjpeg_port, calc_topk, show_imgs, chart_path);
+	else if(0==strcmp(argv[2], "train")) train_classifier(data, cfg, weights, gpus, ngpus, clear, dont_show, mjpeg_port, calc_topk, show_imgs, chart_path);
 	else if(0==strcmp(argv[2], "demo")) demo_classifier(data, cfg, weights, cam_index, filename, benchmark, benchmark_layers);
-	else if(0==strcmp(argv[2], "gun")) gun_classifier(data, cfg, weights, cam_index, filename);
 	else if(0==strcmp(argv[2], "threat")) threat_classifier(data, cfg, weights, cam_index, filename);
 	else if(0==strcmp(argv[2], "test")) test_classifier(data, cfg, weights, layer);
 	else if(0==strcmp(argv[2], "label")) label_classifier(data, cfg, weights);

@@ -10,8 +10,6 @@
 #endif
 
 
-#ifdef OPENCV
-
 #include <string>
 #include <opencv2/opencv.hpp>
 
@@ -80,6 +78,7 @@ class Chart final
 		float max_map_value;
 		cv::Scalar map_colour;
 
+		std::time_t started_timestamp;
 		std::time_t last_update_timestamp;
 		std::time_t last_save_timestamp;
 };
@@ -90,5 +89,3 @@ extern Chart training_chart;
 
 /// Additional training charts for each of the classes.
 extern std::vector<Chart> more_charts;
-
-#endif

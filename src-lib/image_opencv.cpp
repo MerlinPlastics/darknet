@@ -8,20 +8,6 @@
 #include <iostream>
 #include <ciso646>
 
-#ifndef OPENCV
-
-extern "C" void show_opencv_info()
-{
-	display_warning_msg("OpenCV is disabled - image loading and data augmentation will be slow\n");
-}
-
-extern "C" int wait_key_cv(int delay) { return 0; }
-extern "C" int wait_until_press_key_cv() { return 0; }
-extern "C" void destroy_all_windows_cv() {}
-extern "C" void resize_window_cv(char const* window_name, int width, int height) {}
-
-#else
-
 #include "utils.hpp"
 
 #include <cstdio>
@@ -82,12 +68,27 @@ extern "C" void resize_window_cv(char const* window_name, int width, int height)
 
 extern "C" {
 
-mat_cv * load_image_mat_cv(const char * const filename, int flag)
+mat_cv * load_image_mat_cv(const char * const filename, int channels)
 {
 	cv::Mat * mat = nullptr;
 
 	try
 	{
+		int flag = cv::IMREAD_UNCHANGED;
+
+		if (channels == 1)
+		{
+			flag = cv::IMREAD_GRAYSCALE;
+		}
+		else if (channels == 3)
+		{
+			flag = cv::IMREAD_COLOR;
+		}
+		else
+		{
+			darknet_fatal_error(DARKNET_LOC, "OpenCV cannot load an image with %d channels: %s", channels, filename);
+		}
+
 		cv::Mat input = cv::imread(filename, flag);
 		if (input.empty())
 		{
@@ -125,38 +126,11 @@ mat_cv * load_image_mat_cv(const char * const filename, int flag)
 }
 
 
-cv::Mat load_image_mat(char *filename, int channels)
-{
-	int flag = cv::IMREAD_UNCHANGED;
-	if (channels == 0)
-	{
-		flag = cv::IMREAD_COLOR;
-	}
-	else if (channels == 1)
-	{
-		flag = cv::IMREAD_GRAYSCALE;
-	}
-	else if (channels == 3)
-	{
-		flag = cv::IMREAD_COLOR;
-	}
-	else
-	{
-		darknet_fatal_error(DARKNET_LOC, "OpenCV cannot load an image with %d channels: %s", channels, filename);
-	}
-
-	cv::Mat * mat_ptr = reinterpret_cast<cv::Mat*>(load_image_mat_cv(filename, flag));
-
-	cv::Mat mat = *mat_ptr;
-	delete mat_ptr;
-
-	return mat;
-}
-
-
 image load_image_cv(char *filename, int channels)
 {
-	cv::Mat mat = load_image_mat(filename, channels);
+	cv::Mat* mat_ptr = reinterpret_cast<cv::Mat*>(load_image_mat_cv(filename, channels));
+	cv::Mat mat = *mat_ptr;
+	delete mat_ptr;
 
 	return mat_to_image(mat);
 }
@@ -210,7 +184,7 @@ cv::Mat image_to_mat(image img)
 			for (int c = 0; c < img.c; ++c)
 			{
 				float val = img.data[c*img.h*img.w + y*img.w + x];
-				mat.data[y*step + x*img.c + c] = (unsigned char)(val * 255);
+				mat.data[y*step + x*img.c + c] = (unsigned char)(val * 255);	 ///< @todo Is this right?
 			}
 		}
 	}
@@ -672,7 +646,7 @@ image get_image_from_stream_cpp(cap_cv *cap)
 int wait_for_stream(cap_cv *cap, cv::Mat* src, int dont_close)
 {
 	if (!src) {
-		if (dont_close) src = new cv::Mat(416, 416, CV_8UC(3)); // cvCreateImage(cvSize(416, 416), IPL_DEPTH_8U, 3);
+		if (dont_close) src = new cv::Mat(416, 416, CV_8UC(3)); // cvCreateImage(cvSize(416, 416), IPL_DEPTH_8U, 3);  ///< @todo #COLOR
 		else return 0;
 	}
 	if (src->cols < 1 || src->rows < 1 || src->channels() < 1) {
@@ -1235,7 +1209,7 @@ void update_train_loss_chart(char *windows_name, mat_cv* img_src, int img_size, 
 // Data augmentation
 // ====================================================================
 
-
+/// @todo #COLOR - cannot do hue in hyperspectal land
 image image_data_augmentation(mat_cv* mat, int w, int h,
 	int pleft, int ptop, int swidth, int sheight, int flip,
 	float dhue, float dsat, float dexp,
@@ -1258,7 +1232,6 @@ image image_data_augmentation(mat_cv* mat, int w, int h,
 		}
 		else {
 			cv::Mat cropped(src_rect.size(), img.type());
-			//cropped.setTo(cv::Scalar::all(0));
 			cropped.setTo(cv::mean(img));
 
 			img(new_src_rect).copyTo(cropped(dst_rect));
@@ -1277,7 +1250,7 @@ image image_data_augmentation(mat_cv* mat, int w, int h,
 		// HSV augmentation
 		// cv::COLOR_BGR2HSV, cv::COLOR_RGB2HSV, cv::COLOR_HSV2BGR, cv::COLOR_HSV2RGB
 		if (dsat != 1 || dexp != 1 || dhue != 0) {
-			if (img.channels() >= 3)
+			if (img.channels() >= 3)	// This only (really) works for c == 3
 			{
 				cv::Mat hsv_src;
 				cvtColor(sized, hsv_src, cv::COLOR_RGB2HSV);    // RGB to HSV
@@ -1546,7 +1519,7 @@ void cv_draw_object(image sized, float *truth_cpu, int max_boxes, int num_truth,
 // ====================================================================
 
 
-void show_acnhors(int number_of_boxes, int num_of_clusters, float *rel_width_height_array, model anchors_data, int width, int height)
+void show_anchors(int number_of_boxes, int num_of_clusters, float *rel_width_height_array, model anchors_data, int width, int height)
 {
 	cv::Mat labels = cv::Mat(number_of_boxes, 1, CV_32SC1);
 	cv::Mat points = cv::Mat(number_of_boxes, 2, CV_32FC1);
@@ -1606,5 +1579,3 @@ void show_opencv_info()
 }
 
 }   // extern "C"
-
-#endif // opencv

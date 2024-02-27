@@ -69,7 +69,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 			free_layer_custom(net_map.layers[k], 1);
 		}
 
-		char *name_list = option_find_str(options, "names", "data/names.list");
+		char *name_list = option_find_str(options, "names", nullptr);
 		int names_size = 0;
 		char **names = get_labels_custom(name_list, &names_size);
 		if (net_classes != names_size)
@@ -195,7 +195,6 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 	if (dont_show && show_imgs) show_imgs = 2;
 	args.show_imgs = show_imgs;
 
-#ifdef OPENCV
 	//int num_threads = get_num_threads();
 	//if(num_threads > 2) args.threads = get_num_threads() - 2;
 	args.threads = 6 * ngpus;   // 3 for - Amazon EC2 Tesla V100: p3.2xlarge (8 logical cores) - p3.16xlarge
@@ -204,7 +203,6 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 	// This is where we draw the initial blank chart.  That chart is then updated by update_train_loss_chart() at every iteration.
 	Darknet::initialize_new_charts(net.max_batches, net.max_chart_loss);
 
-#endif    //OPENCV
 	if (net.contrastive && args.threads > net.batch/2) args.threads = net.batch / 2;
 	if (net.track)
 	{
@@ -421,7 +419,6 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 			// done doing mAP% calculation
 		}
 
-#ifdef OPENCV
 		if (net.contrastive)
 		{
 			float cur_con_acc = -1;
@@ -438,8 +435,6 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 
 		// this is where we draw the chart while training
 		Darknet::update_loss_in_new_charts(iteration, avg_loss, seconds_remaining, dont_show);
-
-#endif    // OPENCV
 
 		if (iteration >= iter_save + how_often_we_save_weights || (iteration % how_often_we_save_weights) == 0)
 		{
@@ -481,9 +476,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 
 	printf("If you want to re-start training, then use the flag \"-clear\" in the training command.\n");
 
-#ifdef OPENCV
 	destroy_all_windows_cv();
-#endif
 
 	// free memory
 	pthread_join(load_thread, 0);
@@ -700,8 +693,8 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 {
 	int j;
 	list *options = read_data_cfg(datacfg);
-	char *valid_images = option_find_str(options, "valid", "data/train.list");
-	char *name_list = option_find_str(options, "names", "data/names.list");
+	char *valid_images = option_find_str(options, "valid", nullptr);
+	char *name_list = option_find_str(options, "names", nullptr);
 	char *prefix = option_find_str(options, "results", "results");
 	char **names = get_labels(name_list);
 	char *mapf = option_find_str(options, "map", 0);
@@ -997,9 +990,9 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 {
 	int j;
 	list *options = read_data_cfg(datacfg);
-	char *valid_images = option_find_str(options, "valid", "data/train.txt");
+	char *valid_images = option_find_str(options, "valid", nullptr);
 	char *difficult_valid_images = option_find_str(options, "difficult", NULL);
-	char *name_list = option_find_str(options, "names", "data/names.list");
+	char *name_list = option_find_str(options, "names", nullptr);
 	int names_size = 0;
 	char **names = get_labels_custom(name_list, &names_size); //get_labels(name_list);
 	//char *mapf = option_find_str(options, "map", 0);
@@ -1011,7 +1004,7 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 	//int initial_batch;
 	if (existing_net)
 	{
-		char *train_images = option_find_str(options, "train", "data/train.txt");
+		char *train_images = option_find_str(options, "train", nullptr);
 		valid_images = option_find_str(options, "valid", train_images);
 		net = *existing_net;
 		remember_network_recurrent_state(*existing_net);
@@ -1798,9 +1791,7 @@ void calc_anchors(char *datacfg, int num_of_clusters, int width, int height, int
 	}
 
 	if (show) {
-#ifdef OPENCV
-		show_acnhors(number_of_boxes, num_of_clusters, rel_width_height_array, anchors_data, width, height);
-#endif // OPENCV
+		show_anchors(number_of_boxes, num_of_clusters, rel_width_height_array, anchors_data, width, height);
 	}
 	free(rel_width_height_array);
 	free(counter_per_class);
@@ -1811,7 +1802,7 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
 	float hier_thresh, int dont_show, int ext_output, int save_labels, char *outfile, int letter_box, int benchmark_layers)
 {
 	list *options = read_data_cfg(datacfg);
-	char *name_list = option_find_str(options, "names", "data/names.list");
+	char *name_list = option_find_str(options, "names", nullptr);
 	int names_size = 0;
 	char **names = get_labels_custom(name_list, &names_size); //get_labels(name_list);
 
@@ -1880,18 +1871,11 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
 			}
 		}
 
-		//box *boxes = calloc(l.w*l.h*l.n, sizeof(box));
-		//float **probs = calloc(l.w*l.h*l.n, sizeof(float*));
-		//for(j = 0; j < l.w*l.h*l.n; ++j) probs[j] = (float*)xcalloc(l.classes, sizeof(float));
-
 		float *X = sized.data;
 
-		//time= what_time_is_it_now();
 		double time = get_time_point();
 		network_predict(net, X);
-		//network_predict_image(&net, im); letterbox = 1;
 		printf("%s: Predicted in %lf milli-seconds.\n", input, ((double)get_time_point() - time) / 1000);
-		//printf("%s: Predicted in %f seconds.\n", input, (what_time_is_it_now()-time));
 
 		int nboxes = 0;
 		detection *dets = get_network_boxes(&net, im.w, im.h, thresh, hier_thresh, 0, 1, &nboxes, letter_box);
@@ -1907,11 +1891,14 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
 			}
 		}
 
-		draw_detections_v3(im, dets, nboxes, thresh, names, l.classes, ext_output);
-		save_image(im, "predictions");
+		// Load the image explicitly asking for 3 color channels
+		image im_color = load_image(input, 0, 0, 3);
+
+		draw_detections_v3(im_color, dets, nboxes, thresh, names, l.classes, ext_output);
+		save_image(im_color, "predictions");
 		if (!dont_show)
 		{
-			show_image(im, "predictions");
+			show_image(im_color, "predictions");
 		}
 
 		if (json_file)
@@ -1955,6 +1942,7 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
 		}
 
 		free_detections(dets, nboxes);
+		free_image(im_color);
 		free_image(im);
 		free_image(sized);
 
@@ -1980,14 +1968,14 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
 	free_network(net);
 }
 
-#if defined(OPENCV) && defined(GPU)
+#if defined(GPU)
 
 // adversarial attack dnn
 void draw_object(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh, int dont_show, int it_num,
 	int letter_box, int benchmark_layers)
 {
 	list *options = read_data_cfg(datacfg);
-	char *name_list = option_find_str(options, "names", "data/names.list");
+	char *name_list = option_find_str(options, "names", nullptr);
 	int names_size = 0;
 	char **names = get_labels_custom(name_list, &names_size); //get_labels(name_list);
 
@@ -2133,12 +2121,12 @@ void draw_object(char *datacfg, char *cfgfile, char *weightfile, char *filename,
 
 	free_network(net);
 }
-#else // defined(OPENCV) && defined(GPU)
+#else // defined(GPU)
 void draw_object(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh, int dont_show, int it_num, int letter_box, int benchmark_layers)
 {
 	darknet_fatal_error(DARKNET_LOC, "detector draw cannot be used without OpenCV and CUDA");
 }
-#endif // defined(OPENCV) && defined(GPU)
+#endif // defined(GPU)
 
 void run_detector(int argc, char **argv)
 {
@@ -2241,7 +2229,7 @@ void run_detector(int argc, char **argv)
 		 */
 		list *options = read_data_cfg(datacfg);
 		int classes = option_find_int(options, "classes", 20);
-		char *name_list = option_find_str(options, "names", "data/names.list");
+		char *name_list = option_find_str(options, "names", nullptr);
 		char **names = get_labels(name_list);
 		if (input_fn)
 		{
