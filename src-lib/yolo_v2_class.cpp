@@ -107,6 +107,10 @@ bool built_with_opencv(){
 }
 
 
+double get_net_speed(int iterations) {
+	return detector->get_net_speed(iterations);
+}
+
 int get_device_name(int gpu, char* deviceName) {
 #ifdef GPU
 	cudaDeviceProp prop;
@@ -225,6 +229,30 @@ int Detector::get_net_color_depth() const {
 	return detector_gpu.net.c;
 }
 
+double Detector::get_net_speed(int iterations = 1000) {
+	detector_gpu_t& detector_gpu = *static_cast<detector_gpu_t*>(detector_gpu_ptr.get());
+	network& net = detector_gpu.net;
+
+#ifdef GPU
+	int old_gpu_index;
+	cudaGetDevice(&old_gpu_index);
+	if (cur_gpu_id != old_gpu_index)
+		cudaSetDevice(net.gpu_index);
+
+	net.wait_stream = wait_stream;    // 1 - wait CUDA-stream, 0 - not to wait
+#endif
+
+		if (iterations == 0) iterations = 1000;
+
+		double start = get_time_point();
+		image im = make_image(net.w, net.h, net.c);
+		for (int i = 0; i < iterations; ++i) {
+			network_predict(net, im.data);
+		}
+		double end = get_time_point();
+		double durationMicroSeconds = end - start;		
+		return durationMicroSeconds / 1000 / iterations;
+}
 
 std::vector<bbox_t> Detector::detect(std::string image_filename, float thresh, bool use_mean)
 {

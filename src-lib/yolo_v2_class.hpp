@@ -63,6 +63,7 @@ extern "C"
 	bool built_with_cudnn();
 	bool built_with_opencv();
 	void send_json_custom(char const* send_buf, int port, int timeout);
+	double get_net_speed(int iterations);
 }
 
 class Detector {
@@ -85,6 +86,7 @@ public:
 	int get_net_width() const;
 	int get_net_height() const;
 	int get_net_color_depth() const;
+	double get_net_speed(int iterations);
 
 	std::vector<bbox_t> tracking_id(std::vector<bbox_t> cur_bbox_vec, bool const change_history = true,
 												int const frames_story = 5, int const max_dist = 40);
