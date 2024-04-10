@@ -181,7 +181,7 @@ cd vcpkg
 bootstrap-vcpkg.bat
 .\vcpkg.exe integrate install
 .\vcpkg.exe integrate powershell
-.\vcpkg.exe install opencv[contrib,dnn,freetype,jpeg,openmp,png,webp,world]:x64-windows pthreads:x64-windows
+.\vcpkg.exe install opencv[contrib,dnn,freetype,jpeg,openmp,png,webp,world]:x64-windows
 ```
 
 Be patient at this last step as it can take a long time to run.  It needs to download and build many things.
@@ -365,6 +365,8 @@ Last updated 2024-02-12:
 
 ## Short-term goals
 
+* [ ] swap out qsort() for std::sort()
+* [ ] get rid of check_mistakes and calls to getchar()
 * [X] convert Darknet to use the C++ compiler (g++ on Linux, VisualStudio on Windows)
 * [X] fix Windows build
 * [ ] fix ARM build (Jetson devices)
@@ -381,8 +383,9 @@ Last updated 2024-02-12:
 * [X] re-enable AVX
 * [ ] look into old zed camera support
 * [X] remove old solutions and Makefile
-* [ ] make OpenCV non-optional
+* [X] make OpenCV non-optional
 * [ ] better and more consistent command line parsing
+* [X] remove dependency on the old pthread library
 * [X] remove STB
 * [X] re-write CMakeLists.txt to use the new CUDA detection
 * [X] remove old "alphabet" code, and delete the 700+ images in data/labels

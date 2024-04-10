@@ -13,7 +13,6 @@
 #include <string.h>
 #include <stdint.h>
 #include <assert.h>
-#include <pthread.h>
 
 /// @todo what is this?
 #define SECRET_NUM -1234
@@ -890,8 +889,10 @@ typedef struct det_num_pair {
 } det_num_pair, *pdet_num_pair;
 
 // matrix.h
-typedef struct matrix {
-	int rows, cols;
+typedef struct matrix
+{
+	int rows;
+	int cols;
 	float **vals;
 } matrix;
 
@@ -914,22 +915,22 @@ typedef enum
 {
 	CLASSIFICATION_DATA,
 	DETECTION_DATA,
-	CAPTCHA_DATA,
+//	CAPTCHA_DATA, unused
 	REGION_DATA,
 	IMAGE_DATA, ///< causes @ref load_image() and @ref resize_image() to be called
 	COMPARE_DATA,
 	WRITING_DATA,
-	SWAG_DATA,
+//	SWAG_DATA, unused
 	TAG_DATA,
 	OLD_CLASSIFICATION_DATA,
-	STUDY_DATA,
-	DET_DATA,
+//	STUDY_DATA, unused
+//	DET_DATA, unused
 	SUPER_DATA,
 	LETTERBOX_DATA,
-	REGRESSION_DATA,
-	SEGMENTATION_DATA,
-	INSTANCE_DATA,
-	ISEG_DATA
+//	REGRESSION_DATA, unused
+//	SEGMENTATION_DATA, unused
+//	INSTANCE_DATA, unused
+//	ISEG_DATA unused
 } data_type;
 
 
@@ -941,8 +942,8 @@ typedef struct load_args {
 	int threads;
 	char **paths;
 	char *path;
-	int n;
-	int m;
+	int n; ///< number of images, or batch size?
+	int m; ///< maximum number of images?
 	char **labels;
 	int h;
 	int w;
@@ -1053,13 +1054,6 @@ image resize_min(image im, int min);
 // layer.h
 void free_layer_custom(layer l, int keep_cudnn_desc);
 void free_layer(layer l);
-
-// data.c
-void free_data(data d);
-pthread_t load_data(load_args args);
-void free_load_threads(void *ptr);
-pthread_t load_data_in_thread(load_args args);
-void *load_thread(void *ptr);
 
 // dark_cuda.h
 void cuda_pull_array(float *x_gpu, float *x, size_t n);

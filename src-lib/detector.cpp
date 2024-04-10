@@ -3,17 +3,10 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
-#include <stdlib.h>
-#include "darknet.h"
-#include "network.hpp"
-#include "region_layer.hpp"
-#include "cost_layer.hpp"
-#include "utils.hpp"
+#include "darknet_internal.hpp"
 #include "parser.hpp"
-#include "box.hpp"
 #include "demo.hpp"
 #include "option_list.hpp"
-#include "darknet_utils.hpp"
 #include "data.hpp"
 
 
@@ -38,6 +31,8 @@ static int coco_ids[] = { 1,2,3,4,5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,
 
 void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, int ngpus, int clear, int dont_show, int calc_map, float thresh, float iou_thresh, int mjpeg_port, int show_imgs, int benchmark_layers, char* chart_path)
 {
+	TAT(TATPARMS);
+
 //	const std::filesystem::path & datacfg		= cfg_and_state.data_filename;
 //	const std::filesystem::path & cfgfile		= cfg_and_state.cfg_filename;
 //	const std::filesystem::path & weightfile	= cfg_and_state.weights_filename;
@@ -215,7 +210,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 	}
 	//printf(" imgs = %d \n", imgs);
 
-	pthread_t load_thread = load_data(args);
+	std::thread load_thread = std::thread(Darknet::run_image_loading_control_thread, args);
 
 	int count = 0;
 
@@ -282,10 +277,11 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 				printf("\n %d x %d \n", dim_w, dim_h);
 			}
 
-			pthread_join(load_thread, 0);
+			load_thread.join();
 			train = buffer;
-			free_data(train);
-			load_thread = load_data(args);
+			Darknet::free_data(train);
+
+			load_thread = std::thread(Darknet::run_image_loading_control_thread, args);
 
 			for (int k = 0; k < ngpus; ++k)
 			{
@@ -294,7 +290,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 			net = nets[0];
 		}
 		double time = what_time_is_it_now();
-		pthread_join(load_thread, 0);
+		load_thread.join();
 		train = buffer;
 		if (net.track)
 		{
@@ -302,7 +298,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 			args.threads = net.sequential_subdivisions * ngpus;
 			printf(" sequential_subdivisions = %d, sequence = %d \n", net.sequential_subdivisions, get_sequence_value(net));
 		}
-		load_thread = load_data(args);
+		load_thread = std::thread(Darknet::run_image_loading_control_thread, args);
 
 		const double load_time = (what_time_is_it_now() - time);
 		Darknet::display_loaded_images(args.n, load_time); // "loaded %d images in %s\n"
@@ -385,10 +381,11 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 					args.n = imgs;
 					printf("\n %d x %d  (batch = %d) \n", init_w, init_h, init_b);
 				}
-				pthread_join(load_thread, 0);
-				free_data(train);
+				load_thread.join();
+				Darknet::free_data(train);
 				train = buffer;
-				load_thread = load_data(args);
+				load_thread = std::thread(Darknet::run_image_loading_control_thread, args);
+
 				for (int k = 0; k < ngpus; ++k)
 				{
 					resize_network(nets + k, init_w, init_h);
@@ -463,7 +460,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 				printf(" EMA weights are saved to the file: %s \n", buff);
 			}
 		}
-		free_data(train);
+		Darknet::free_data(train);
 
 	} // end of training loop
 
@@ -479,10 +476,10 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 	destroy_all_windows_cv();
 
 	// free memory
-	pthread_join(load_thread, 0);
-	free_data(buffer);
+	load_thread.join();
+	Darknet::free_data(buffer);
 
-	free_load_threads(&args);
+	Darknet::stop_image_loading_threads();
 
 	free(base);
 	free(paths);
@@ -509,6 +506,8 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 
 static int get_coco_image_id(char *filename)
 {
+	TAT(TATPARMS);
+
 	char *p = strrchr(filename, '/');
 	char *c = strrchr(filename, '_');
 	if (c) p = c;
@@ -517,6 +516,8 @@ static int get_coco_image_id(char *filename)
 
 static void print_cocos(FILE *fp, char *image_path, detection *dets, int num_boxes, int classes, int w, int h)
 {
+	TAT(TATPARMS);
+
 	int i, j;
 	//int image_id = get_coco_image_id(image_path);
 	char *p = basecfg(image_path);
@@ -550,6 +551,8 @@ static void print_cocos(FILE *fp, char *image_path, detection *dets, int num_box
 
 void print_detector_detections(FILE **fps, char *id, detection *dets, int total, int classes, int w, int h)
 {
+	TAT(TATPARMS);
+
 	int i, j;
 	for (i = 0; i < total; ++i) {
 		float xmin = dets[i].bbox.x - dets[i].bbox.w / 2. + 1;
@@ -571,6 +574,8 @@ void print_detector_detections(FILE **fps, char *id, detection *dets, int total,
 
 void print_imagenet_detections(FILE *fp, int id, detection *dets, int total, int classes, int w, int h)
 {
+	TAT(TATPARMS);
+
 	int i, j;
 	for (i = 0; i < total; ++i) {
 		float xmin = dets[i].bbox.x - dets[i].bbox.w / 2.;
@@ -593,6 +598,8 @@ void print_imagenet_detections(FILE *fp, int id, detection *dets, int total, int
 
 static void print_kitti_detections(FILE **fps, char *id, detection *dets, int total, int classes, int w, int h, char *outfile, char *prefix)
 {
+	TAT(TATPARMS);
+
 	char *kitti_ids[] = { "car", "pedestrian", "cyclist" };
 	FILE *fpd = 0;
 	char buffd[1024];
@@ -623,6 +630,8 @@ static void print_kitti_detections(FILE **fps, char *id, detection *dets, int to
 
 static void eliminate_bdd(char *buf, char *a)
 {
+	TAT(TATPARMS);
+
 	int n = 0;
 	int i, k;
 	for (i = 0; buf[i] != '\0'; i++)
@@ -650,6 +659,8 @@ static void eliminate_bdd(char *buf, char *a)
 
 static void get_bdd_image_id(char *filename)
 {
+	TAT(TATPARMS);
+
 	char *p = strrchr(filename, '/');
 	eliminate_bdd(p, ".jpg");
 	eliminate_bdd(p, "/");
@@ -658,6 +669,8 @@ static void get_bdd_image_id(char *filename)
 
 static void print_bdd_detections(FILE *fp, char *image_path, detection *dets, int num_boxes, int classes, int w, int h)
 {
+	TAT(TATPARMS);
+
 	char *bdd_ids[] = { "bike" , "bus" , "car" , "motor" ,"person", "rider", "traffic light", "traffic sign", "train", "truck" };
 	get_bdd_image_id(image_path);
 	int i, j;
@@ -691,6 +704,8 @@ static void print_bdd_detections(FILE *fp, char *image_path, detection *dets, in
 
 void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *outfile)
 {
+	TAT(TATPARMS);
+
 	int j;
 	list *options = read_data_cfg(datacfg);
 	char *valid_images = option_find_str(options, "valid", nullptr);
@@ -702,7 +717,8 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 	if (mapf) map = read_map(mapf);
 
 	network net = parse_network_cfg_custom(cfgfile, 1, 1);    // set batch=1
-	if (weightfile) {
+	if (weightfile)
+	{
 		load_weights(&net, weightfile);
 	}
 	//set_batch_network(&net, 1);
@@ -735,21 +751,24 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 	int bdd = 0;
 	int kitti = 0;
 
-	if (0 == strcmp(type, "coco")) {
+	if (0 == strcmp(type, "coco"))
+	{
 		if (!outfile) outfile = "coco_results";
 		snprintf(buff, 1024, "%s/%s.json", prefix, outfile);
 		fp = fopen(buff, "w");
 		fprintf(fp, "[\n");
 		coco = 1;
 	}
-	else if (0 == strcmp(type, "bdd")) {
+	else if (0 == strcmp(type, "bdd"))
+	{
 		if (!outfile) outfile = "bdd_results";
 		snprintf(buff, 1024, "%s/%s.json", prefix, outfile);
 		fp = fopen(buff, "w");
 		fprintf(fp, "[\n");
 		bdd = 1;
 	}
-	else if (0 == strcmp(type, "kitti")) {
+	else if (0 == strcmp(type, "kitti"))
+	{
 		char buff2[1024];
 		if (!outfile) outfile = "kitti_results";
 		printf("%s\n", outfile);
@@ -759,14 +778,16 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 		/*int mkd2 = */ make_directory(buff2, 0777);
 		kitti = 1;
 	}
-	else if (0 == strcmp(type, "imagenet")) {
+	else if (0 == strcmp(type, "imagenet"))
+	{
 		if (!outfile) outfile = "imagenet-detection";
 		snprintf(buff, 1024, "%s/%s.txt", prefix, outfile);
 		fp = fopen(buff, "w");
 		imagenet = 1;
 		classes = 200;
 	}
-	else {
+	else
+	{
 		if (!outfile) outfile = "comp4_det_test_";
 		fps = (FILE**) xcalloc(classes, sizeof(FILE *));
 		for (j = 0; j < classes; ++j) {
@@ -774,7 +795,6 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 			fps[j] = fopen(buff, "w");
 		}
 	}
-
 
 	int m = plist->size;
 	int i = 0;
@@ -789,7 +809,6 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 	image* val_resized = (image*)xcalloc(nthreads, sizeof(image));
 	image* buf = (image*)xcalloc(nthreads, sizeof(image));
 	image* buf_resized = (image*)xcalloc(nthreads, sizeof(image));
-	pthread_t* thr = (pthread_t*)xcalloc(nthreads, sizeof(pthread_t));
 
 	load_args args = { 0 };
 	args.w = net.w;
@@ -799,27 +818,34 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 	const int letter_box = net.letter_box;
 	if (letter_box) args.type = LETTERBOX_DATA;
 
-	for (t = 0; t < nthreads; ++t) {
+	Darknet::VThreads thr;
+	thr.reserve(nthreads);
+	for (t = 0; t < nthreads; ++t)
+	{
 		args.path = paths[i + t];
 		args.im = &buf[t];
 		args.resized = &buf_resized[t];
-		thr[t] = load_data_in_thread(args);
+		thr.emplace_back(Darknet::load_single_image_data, args);
 	}
 	time_t start = time(0);
-	for (i = nthreads; i < m + nthreads; i += nthreads) {
+	for (i = nthreads; i < m + nthreads; i += nthreads)
+	{
 		fprintf(stderr, "%d\n", i);
-		for (t = 0; t < nthreads && i + t - nthreads < m; ++t) {
-			pthread_join(thr[t], 0);
+		for (t = 0; t < nthreads && i + t - nthreads < m; ++t)
+		{
+			thr[t].join();
 			val[t] = buf[t];
 			val_resized[t] = buf_resized[t];
 		}
-		for (t = 0; t < nthreads && i + t < m; ++t) {
+		for (t = 0; t < nthreads && i + t < m; ++t)
+		{
 			args.path = paths[i + t];
 			args.im = &buf[t];
 			args.resized = &buf_resized[t];
-			thr[t] = load_data_in_thread(args);
+			thr[t] = std::thread(Darknet::load_single_image_data, args);
 		}
-		for (t = 0; t < nthreads && i + t - nthreads < m; ++t) {
+		for (t = 0; t < nthreads && i + t - nthreads < m; ++t)
+		{
 			char *path = paths[i + t - nthreads];
 			char *id = basecfg(path);
 			float *X = val_resized[t].data;
@@ -828,12 +854,14 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 			int h = val[t].h;
 			int nboxes = 0;
 			detection *dets = get_network_boxes(&net, w, h, thresh, .5, map, 0, &nboxes, letter_box);
-			if (nms) {
+			if (nms)
+			{
 				if (l.nms_kind == DEFAULT_NMS) do_nms_sort(dets, nboxes, l.classes, nms);
 				else diounms_sort(dets, nboxes, l.classes, nms, l.nms_kind, l.beta_nms);
 			}
 
-			if (coco) {
+			if (coco)
+			{
 				print_cocos(fp, path, dets, nboxes, classes, w, h);
 			}
 			else if (imagenet) {
@@ -883,7 +911,6 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 
 	if (val) free(val);
 	if (val_resized) free(val_resized);
-	if (thr) free(thr);
 	if (buf) free(buf);
 	if (buf_resized) free(buf_resized);
 
@@ -892,6 +919,8 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 
 void validate_detector_recall(char *datacfg, char *cfgfile, char *weightfile)
 {
+	TAT(TATPARMS);
+
 	network net = parse_network_cfg_custom(cfgfile, 1, 1);    // set batch=1
 	if (weightfile) {
 		load_weights(&net, weightfile);
@@ -978,6 +1007,10 @@ typedef struct {
 
 int detections_comparator(const void *pa, const void *pb)
 {
+	TAT(TATPARMS);
+
+	/// @todo inline this with std::sort() to simplify things...also check to see where else code like this exists, I think there are several qsorts with this functionality
+
 	box_prob a = *(const box_prob *)pa;
 	box_prob b = *(const box_prob *)pb;
 	float diff = a.p - b.p;
@@ -988,6 +1021,8 @@ int detections_comparator(const void *pa, const void *pb)
 
 float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float thresh_calc_avg_iou, const float iou_thresh, const int map_points, int letter_box, network *existing_net)
 {
+	TAT(TATPARMS);
+
 	int j;
 	list *options = read_data_cfg(datacfg);
 	char *valid_images = option_find_str(options, "valid", nullptr);
@@ -1066,7 +1101,6 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 	image* val_resized = (image*)xcalloc(nthreads, sizeof(image));
 	image* buf = (image*)xcalloc(nthreads, sizeof(image));
 	image* buf_resized = (image*)xcalloc(nthreads, sizeof(image));
-	pthread_t* thr = (pthread_t*)xcalloc(nthreads, sizeof(pthread_t));
 
 	load_args args = { 0 };
 	args.w = net.w;
@@ -1099,12 +1133,14 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 	int *tp_for_thresh_per_class = (int*)xcalloc(classes, sizeof(int));
 	int *fp_for_thresh_per_class = (int*)xcalloc(classes, sizeof(int));
 
+	Darknet::VThreads thr;
+	thr.reserve(nthreads);
 	for (int t = 0; t < nthreads; ++t)
 	{
 		args.path = paths[t];
 		args.im = &buf[t];
 		args.resized = &buf_resized[t];
-		thr[t] = load_data_in_thread(args);
+		thr.emplace_back(Darknet::load_single_image_data, args);
 	}
 	time_t start = time(0);
 	for (int i = nthreads; i < number_of_validation_images + nthreads; i += nthreads)
@@ -1115,7 +1151,7 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 		// wait until the 4 threads have finished loading in their image
 		for (int t = 0; t < nthreads && (i + t - nthreads) < number_of_validation_images; ++t)
 		{
-			pthread_join(thr[t], 0);
+			thr[t].join();
 			val[t] = buf[t];
 			val_resized[t] = buf_resized[t];
 		}
@@ -1125,7 +1161,7 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 			args.path = paths[i + t];
 			args.im = &buf[t];
 			args.resized = &buf_resized[t];
-			thr[t] = load_data_in_thread(args);
+			thr[t] = std::thread(Darknet::load_single_image_data, args);
 		}
 
 		for (int t = 0; t < nthreads && i + t - nthreads < number_of_validation_images; ++t)
@@ -1134,7 +1170,7 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 			char *path = paths[image_index];
 			char *id = basecfg(path);
 			float *X = val_resized[t].data;
-			network_predict(net, X);
+			network_predict(net, X); /// @todo would we save anything if net was passed in by reference?
 
 			int nboxes = 0;
 			float hier_thresh = 0;
@@ -1309,6 +1345,7 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 	}
 
 	// SORT(detections)
+	/// @todo replace qsort() highest priority
 	qsort(detections, detections_count, sizeof(box_prob), detections_comparator);
 
 	typedef struct {
@@ -1575,7 +1612,6 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 
 	free(val);
 	free(val_resized);
-	free(thr);
 	free(buf);
 	free(buf_resized);
 
@@ -1588,6 +1624,8 @@ typedef struct {
 
 int anchors_comparator(const void *pa, const void *pb)
 {
+	TAT(TATPARMS);
+
 	anchors_t a = *(const anchors_t *)pa;
 	anchors_t b = *(const anchors_t *)pb;
 	float diff = b.w*b.h - a.w*a.h;
@@ -1598,6 +1636,8 @@ int anchors_comparator(const void *pa, const void *pb)
 
 int anchors_data_comparator(const float **pa, const float **pb)
 {
+	TAT(TATPARMS);
+
 	float *a = (float *)*pa;
 	float *b = (float *)*pb;
 	float diff = b[0] * b[1] - a[0] * a[1];
@@ -1610,6 +1650,8 @@ int anchors_data_comparator(const float **pa, const float **pb)
 void calc_anchors(char *datacfg, int num_of_clusters, int width, int height, int show)
 {
 	/// @todo shouldn't we check the .cfg file instead, and get the anchors, width, and height from there instead of requiring them as parms?
+
+	TAT(TATPARMS);
 
 	std::cout
 		<< "Recalculating anchors"
@@ -1702,6 +1744,7 @@ void calc_anchors(char *datacfg, int num_of_clusters, int width, int height, int
 	// K-means
 	anchors_data = do_kmeans(boxes_data, num_of_clusters);
 
+	/// @todo replace qsort() lowest priority
 	qsort((void*)anchors_data.centers.vals, num_of_clusters, 2 * sizeof(float), (__compar_fn_t)anchors_data_comparator);
 
 	//gen_anchors.py = 1.19, 1.99, 2.79, 4.60, 4.53, 8.92, 8.06, 5.29, 10.32, 10.66
@@ -1801,6 +1844,8 @@ void calc_anchors(char *datacfg, int num_of_clusters, int width, int height, int
 void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh,
 	float hier_thresh, int dont_show, int ext_output, int save_labels, char *outfile, int letter_box, int benchmark_layers)
 {
+	TAT(TATPARMS);
+
 	list *options = read_data_cfg(datacfg);
 	char *name_list = option_find_str(options, "names", nullptr);
 	int names_size = 0;
@@ -1974,6 +2019,8 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
 void draw_object(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh, int dont_show, int it_num,
 	int letter_box, int benchmark_layers)
 {
+	TAT(TATPARMS);
+
 	list *options = read_data_cfg(datacfg);
 	char *name_list = option_find_str(options, "names", nullptr);
 	int names_size = 0;
@@ -2130,6 +2177,8 @@ void draw_object(char *datacfg, char *cfgfile, char *weightfile, char *filename,
 
 void run_detector(int argc, char **argv)
 {
+	TAT(TATPARMS);
+
 	int benchmark = find_arg(argc, argv, "-benchmark");
 	int benchmark_layers = find_arg(argc, argv, "-benchmark_layers");
 	//if (benchmark_layers) benchmark = 1;

@@ -1,16 +1,5 @@
-#include <stdio.h>
-
-#include "image.hpp"
-#include "network.hpp"
-#include "detection_layer.hpp"
-#include "cost_layer.hpp"
-#include "utils.hpp"
-#include "parser.hpp"
-#include "box.hpp"
-#include "demo.hpp"
-#include "data.hpp"
-
 #include "darknet_internal.hpp"
+#include "demo.hpp"
 
 char *coco_classes[] = {"person","bicycle","car","motorcycle","airplane","bus","train","truck","boat","traffic light","fire hydrant","stop sign","parking meter","bench","bird","cat","dog","horse","sheep","cow","elephant","bear","zebra","giraffe","backpack","umbrella","handbag","tie","suitcase","frisbee","skis","snowboard","sports ball","kite","baseball bat","baseball glove","skateboard","surfboard","tennis racket","bottle","wine glass","cup","fork","knife","spoon","bowl","banana","apple","sandwich","orange","broccoli","carrot","hot dog","pizza","donut","cake","chair","couch","potted plant","bed","dining table","toilet","tv","laptop","mouse","remote","keyboard","cell phone","microwave","oven","toaster","sink","refrigerator","book","clock","vase","scissors","teddy bear","hair drier","toothbrush"};
 
@@ -64,25 +53,19 @@ void train_coco(char *cfgfile, char *weightfile)
 	args.saturation = net.saturation;
 	args.hue = net.hue;
 
-	pthread_t load_thread = load_data_in_thread(args);
+	std::thread load_thread(Darknet::load_single_image_data, args);
+
 	clock_t time;
 	//while(i*imgs < N*120){
-	while(get_current_batch(net) < net.max_batches){
+	while(get_current_batch(net) < net.max_batches)
+	{
 		i += 1;
 		time=clock();
-		pthread_join(load_thread, 0);
+		load_thread.join();
 		train = buffer;
-		load_thread = load_data_in_thread(args);
+		load_thread = std::thread(Darknet::load_single_image_data, args);
 
 		printf("Loaded: %lf seconds\n", sec(clock()-time));
-
-		/*
-		image im = float_to_image(net.w, net.h, 3, train.X.vals[113]);
-		image copy = copy_image(im);
-		draw_coco(copy, train.y.vals[113], 7, "truth");
-		cvWaitKey(0);
-		free_image(copy);
-		*/
 
 		time=clock();
 		float loss = train_network(net, train);
@@ -100,7 +83,7 @@ void train_coco(char *cfgfile, char *weightfile)
 			sprintf(buff, "%s/%s.backup", backup_directory, base);
 			save_weights(net, buff);
 		}
-		free_data(train);
+		Darknet::free_data(train);
 	}
 	char buff[256];
 	sprintf(buff, "%s/%s_final.weights", backup_directory, base);
@@ -181,34 +164,40 @@ void validate_coco(char *cfgfile, char *weightfile)
 	image* val_resized = (image*)xcalloc(nthreads, sizeof(image));
 	image* buf = (image*)xcalloc(nthreads, sizeof(image));
 	image* buf_resized = (image*)xcalloc(nthreads, sizeof(image));
-	pthread_t* thr = (pthread_t*)xcalloc(nthreads, sizeof(pthread_t));
 
 	load_args args = {0};
 	args.w = net.w;
 	args.h = net.h;
 	args.type = IMAGE_DATA;
 
-	for(t = 0; t < nthreads; ++t){
+	Darknet::VThreads thr;
+	thr.reserve(nthreads);
+	for(t = 0; t < nthreads; ++t)
+	{
 		args.path = paths[i+t];
 		args.im = &buf[t];
 		args.resized = &buf_resized[t];
-		thr[t] = load_data_in_thread(args);
+		thr.emplace_back(Darknet::load_single_image_data, args);
 	}
 	time_t start = time(0);
-	for(i = nthreads; i < m+nthreads; i += nthreads){
+	for(i = nthreads; i < m+nthreads; i += nthreads)
+	{
 		fprintf(stderr, "%d\n", i);
-		for(t = 0; t < nthreads && i+t-nthreads < m; ++t){
-			pthread_join(thr[t], 0);
+		for(t = 0; t < nthreads && i+t-nthreads < m; ++t)
+		{
+			thr[t].join();
 			val[t] = buf[t];
 			val_resized[t] = buf_resized[t];
 		}
-		for(t = 0; t < nthreads && i+t < m; ++t){
+		for(t = 0; t < nthreads && i+t < m; ++t)
+		{
 			args.path = paths[i+t];
 			args.im = &buf[t];
 			args.resized = &buf_resized[t];
-			thr[t] = load_data_in_thread(args);
+			thr[t] = std::thread(Darknet::load_single_image_data, args);
 		}
-		for(t = 0; t < nthreads && i+t-nthreads < m; ++t){
+		for(t = 0; t < nthreads && i+t-nthreads < m; ++t)
+		{
 			char *path = paths[i+t-nthreads];
 			int image_id = get_coco_image_id(path);
 			float *X = val_resized[t].data;
@@ -234,7 +223,6 @@ void validate_coco(char *cfgfile, char *weightfile)
 	if (val_resized) free(val_resized);
 	if (buf) free(buf);
 	if (buf_resized) free(buf_resized);
-	if (thr) free(thr);
 
 	fprintf(stderr, "Total Detection Time: %f Seconds\n", (double)(time(0) - start));
 }

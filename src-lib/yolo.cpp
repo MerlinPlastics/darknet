@@ -1,18 +1,12 @@
-#include "network.hpp"
-#include "detection_layer.hpp"
-#include "cost_layer.hpp"
-#include "utils.hpp"
-#include "parser.hpp"
-#include "box.hpp"
-#include "demo.hpp"
-#include "data.hpp"
-
 #include "darknet_internal.hpp"
+#include "demo.hpp"
 
 char *voc_names[] = {"aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow", "diningtable", "dog", "horse", "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"};
 
 void train_yolo(char *cfgfile, char *weightfile)
 {
+	TAT(TATPARMS);
+
 	char* train_images = "data/voc/train.txt";
 	char* backup_directory = "backup/";
 	srand(time(0));
@@ -56,15 +50,17 @@ void train_yolo(char *cfgfile, char *weightfile)
 	args.saturation = net.saturation;
 	args.hue = net.hue;
 
-	pthread_t load_thread = load_data_in_thread(args);
+	std::thread load_thread(Darknet::load_single_image_data, args);
+
 	clock_t time;
 	//while(i*imgs < N*120){
-	while(get_current_batch(net) < net.max_batches){
+	while(get_current_batch(net) < net.max_batches)
+	{
 		i += 1;
 		time=clock();
-		pthread_join(load_thread, 0);
+		load_thread.join();
 		train = buffer;
-		load_thread = load_data_in_thread(args);
+		load_thread = std::thread(Darknet::load_single_image_data, args);
 
 		printf("Loaded: %lf seconds\n", sec(clock()-time));
 
@@ -79,7 +75,7 @@ void train_yolo(char *cfgfile, char *weightfile)
 			sprintf(buff, "%s/%s_%d.weights", backup_directory, base, i);
 			save_weights(net, buff);
 		}
-		free_data(train);
+		Darknet::free_data(train);
 	}
 	char buff[256];
 	sprintf(buff, "%s/%s_final.weights", backup_directory, base);
@@ -88,6 +84,8 @@ void train_yolo(char *cfgfile, char *weightfile)
 
 void print_yolo_detections(FILE **fps, char *id, box *boxes, float **probs, int total, int classes, int w, int h)
 {
+	TAT(TATPARMS);
+
 	int i, j;
 	for(i = 0; i < total; ++i){
 		float xmin = boxes[i].x - boxes[i].w/2.;
@@ -109,6 +107,8 @@ void print_yolo_detections(FILE **fps, char *id, box *boxes, float **probs, int 
 
 void validate_yolo(char *cfgfile, char *weightfile)
 {
+	TAT(TATPARMS);
+
 	network net = parse_network_cfg(cfgfile);
 	if(weightfile){
 		load_weights(&net, weightfile);
@@ -150,34 +150,40 @@ void validate_yolo(char *cfgfile, char *weightfile)
 	image* val_resized = (image*)xcalloc(nthreads, sizeof(image));
 	image* buf = (image*)xcalloc(nthreads, sizeof(image));
 	image* buf_resized = (image*)xcalloc(nthreads, sizeof(image));
-	pthread_t* thr = (pthread_t*)xcalloc(nthreads, sizeof(pthread_t));
 
 	load_args args = {0};
 	args.w = net.w;
 	args.h = net.h;
 	args.type = IMAGE_DATA;
 
-	for(t = 0; t < nthreads; ++t){
+	Darknet::VThreads thr;
+	thr.reserve(nthreads);
+	for(t = 0; t < nthreads; ++t)
+	{
 		args.path = paths[i+t];
 		args.im = &buf[t];
 		args.resized = &buf_resized[t];
-		thr[t] = load_data_in_thread(args);
+		thr.emplace_back(Darknet::load_single_image_data, args);
 	}
 	time_t start = time(0);
-	for(i = nthreads; i < m+nthreads; i += nthreads){
+	for(i = nthreads; i < m+nthreads; i += nthreads)
+	{
 		fprintf(stderr, "%d\n", i);
-		for(t = 0; t < nthreads && i+t-nthreads < m; ++t){
-			pthread_join(thr[t], 0);
+		for(t = 0; t < nthreads && i+t-nthreads < m; ++t)
+		{
+			thr[t].join();
 			val[t] = buf[t];
 			val_resized[t] = buf_resized[t];
 		}
-		for(t = 0; t < nthreads && i+t < m; ++t){
+		for(t = 0; t < nthreads && i+t < m; ++t)
+		{
 			args.path = paths[i+t];
 			args.im = &buf[t];
 			args.resized = &buf_resized[t];
-			thr[t] = load_data_in_thread(args);
+			thr[t] = std::thread(Darknet::load_single_image_data, args);
 		}
-		for(t = 0; t < nthreads && i+t-nthreads < m; ++t){
+		for(t = 0; t < nthreads && i+t-nthreads < m; ++t)
+		{
 			char *path = paths[i+t-nthreads];
 			char *id = basecfg(path);
 			float *X = val_resized[t].data;
@@ -197,7 +203,6 @@ void validate_yolo(char *cfgfile, char *weightfile)
 	if (val_resized) free(val_resized);
 	if (buf) free(buf);
 	if (buf_resized) free(buf_resized);
-	if (thr) free(thr);
 
 	fprintf(stderr, "Total Detection Time: %f Seconds\n", (double)(time(0) - start));
 	if (fps) {
@@ -210,6 +215,8 @@ void validate_yolo(char *cfgfile, char *weightfile)
 
 void validate_yolo_recall(char *cfgfile, char *weightfile)
 {
+	TAT(TATPARMS);
+
 	network net = parse_network_cfg(cfgfile);
 	if(weightfile){
 		load_weights(&net, weightfile);
@@ -289,6 +296,8 @@ void validate_yolo_recall(char *cfgfile, char *weightfile)
 
 void test_yolo(char *cfgfile, char *weightfile, char *filename, float thresh)
 {
+	TAT(TATPARMS);
+
 	network net = parse_network_cfg(cfgfile);
 	if(weightfile)
 	{
@@ -346,6 +355,8 @@ void test_yolo(char *cfgfile, char *weightfile, char *filename, float thresh)
 
 void run_yolo(int argc, char **argv)
 {
+	TAT(TATPARMS);
+
 	int dont_show = (Darknet::CfgAndState::get().is_shown ? 1 : 0);
 //	int dont_show = find_arg(argc, argv, "-dont_show");
 	int mjpeg_port = find_int_arg(argc, argv, "-mjpeg_port", -1);

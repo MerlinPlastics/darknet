@@ -24,6 +24,8 @@ namespace
 
 void cuda_set_device(int n)
 {
+	TAT(TATPARMS);
+
 	cfg_and_state.gpu_index = n;
 	cudaError_t status = cudaSetDevice(n);
 	if (status != cudaSuccess)
@@ -34,6 +36,8 @@ void cuda_set_device(int n)
 
 int cuda_get_device()
 {
+	TAT(TATPARMS);
+
 	int n = 0;
 	cudaError_t status = cudaGetDevice(&n);
 	CHECK_CUDA(status);
@@ -42,6 +46,8 @@ int cuda_get_device()
 
 void *cuda_get_context()
 {
+	TAT(TATPARMS);
+
 	CUcontext pctx;
 	CUresult status = cuCtxGetCurrent(&pctx);
 	if(status != CUDA_SUCCESS) fprintf(stderr, " Error: cuCtxGetCurrent() is failed \n");
@@ -50,6 +56,8 @@ void *cuda_get_context()
 
 void check_cuda_error(cudaError_t status, const char * const filename, const char * const funcname, const int line)
 {
+	TAT(TATPARMS);
+
 	if (status != cudaSuccess)
 	{
 		darknet_fatal_error(filename, funcname, line, "current CUDA error: status=%d %s: %s", status, cudaGetErrorName(status), cudaGetErrorString(status));
@@ -64,6 +72,8 @@ void check_cuda_error(cudaError_t status, const char * const filename, const cha
 
 void check_cuda_error_extended(cudaError_t status, const char * const filename, const char * const funcname, const int line)
 {
+	TAT(TATPARMS);
+
 	if (status != cudaSuccess)
 	{
 		fflush(NULL);
@@ -107,7 +117,10 @@ dim3 cuda_gridsize(size_t n){
 static cudaStream_t streamsArray[16];    // cudaStreamSynchronize( get_cuda_stream() );
 static int streamInit[16] = { 0 };
 
-cudaStream_t get_cuda_stream() {
+cudaStream_t get_cuda_stream()
+{
+	TAT(TATPARMS);
+
 	int i = cuda_get_device();
 	if (!streamInit[i]) {
 		printf("Create CUDA-stream - %d \n", i);	// This line causes the network print to be inconsistent on the 0th layer
@@ -159,6 +172,8 @@ static cudnnHandle_t cudnnHandle[16];
 
 cudnnHandle_t cudnn_handle()
 {
+	TAT(TATPARMS);
+
 	int i = cuda_get_device();
 	if(!cudnnInit[i]) {
 		cudnnCreate(&cudnnHandle[i]);
@@ -173,6 +188,8 @@ cudnnHandle_t cudnn_handle()
 
 void cudnn_check_error(cudnnStatus_t status, const char * const filename, const char * const function, const int line)
 {
+	TAT(TATPARMS);
+
 #if defined(DEBUG) || defined(CUDA_DEBUG)
 	cudaDeviceSynchronize();
 #endif
@@ -196,6 +213,8 @@ void cudnn_check_error(cudnnStatus_t status, const char * const filename, const 
 
 void cudnn_check_error_extended(cudnnStatus_t status, const char * const filename, const char * const function, const int line)
 {
+	TAT(TATPARMS);
+
 	if (status != CUDNN_STATUS_SUCCESS)
 	{
 		fflush(NULL);
@@ -223,6 +242,8 @@ static int switchCudnnInit[16];
 
 void cublas_check_error(cublasStatus_t status)
 {
+	TAT(TATPARMS);
+
 #if defined(DEBUG) || defined(CUDA_DEBUG)
 	cudaDeviceSynchronize();
 #endif
@@ -237,6 +258,8 @@ void cublas_check_error(cublasStatus_t status)
 
 void cublas_check_error_extended(cublasStatus_t status, const char * const filename, const char * const function, const int line)
 {
+	TAT(TATPARMS);
+
 	if (status != CUBLAS_STATUS_SUCCESS)
 	{
 	printf("\n cuBLAS status Error in: file: %s function: %s() line: %d\n", filename, function, line);
@@ -260,6 +283,8 @@ static cublasHandle_t blasHandle[16];
 
 cublasHandle_t blas_handle()
 {
+	TAT(TATPARMS);
+
 	int i = cuda_get_device();
 	if (!blasInit[i]) {
 		CHECK_CUBLAS(cublasCreate(&blasHandle[i]));
@@ -277,7 +302,10 @@ cublasHandle_t blas_handle()
 static cudaStream_t switchStreamsArray[16];
 static int switchStreamInit[16] = { 0 };
 
-cudaStream_t switch_stream(int i) {
+cudaStream_t switch_stream(int i)
+{
+	TAT(TATPARMS);
+
 	int dev_id = cuda_get_device();
 
 	//printf(" switch_stream = %d \n", i);
@@ -326,7 +354,10 @@ static const int max_events = 1024;
 static cudaEvent_t switchEventsArray[1024];
 static volatile int event_counter = 0;
 
-void wait_stream(int i) {
+void wait_stream(int i)
+{
+	TAT(TATPARMS);
+
 	int dev_id = cuda_get_device();
 	if (event_counter >= max_events)
 	{
@@ -352,16 +383,23 @@ void reset_wait_stream_events() {
 }
 
 
-static float **pinned_ptr = NULL;
-static size_t pinned_num_of_blocks = 0;
-static size_t pinned_index = 0;
-static size_t pinned_block_id = 0;
-static const size_t pinned_block_size = (size_t)1024 * 1024 * 1024 * 1;   // 1 GB block size
-static pthread_mutex_t mutex_pinned = PTHREAD_MUTEX_INITIALIZER;
+namespace
+{
+	static float **pinned_ptr = NULL;
+	static size_t pinned_num_of_blocks = 0;
+	static size_t pinned_index = 0;
+	static size_t pinned_block_id = 0;
+	static const size_t pinned_block_size = (size_t)1024 * 1024 * 1024 * 1;   // 1 GB block size
+
+	static std::mutex mutex_pinned;
+}
+
 
 // free CPU-pinned memory
 void free_pinned_memory()
 {
+	TAT(TATPARMS);
+
 	if (pinned_ptr) {
 		int k;
 		for (k = 0; k < pinned_num_of_blocks; ++k) {
@@ -375,11 +413,15 @@ void free_pinned_memory()
 // custom CPU-pinned memory allocation
 void pre_allocate_pinned_memory(const size_t size)
 {
+	TAT(TATPARMS);
+
 	const size_t num_of_blocks = size / pinned_block_size + ((size % pinned_block_size) ? 1 : 0);
 	printf("pre_allocate... pinned_ptr = %p \n", pinned_ptr);
 
-	pthread_mutex_lock(&mutex_pinned);
-	if (!pinned_ptr) {
+	std::scoped_lock lock(mutex_pinned);
+
+	if (!pinned_ptr)
+	{
 		pinned_ptr = (float **)calloc(num_of_blocks, sizeof(float *));
 		if(!pinned_ptr)
 		{
@@ -404,13 +446,15 @@ void pre_allocate_pinned_memory(const size_t size)
 		}
 		pinned_num_of_blocks = num_of_blocks;
 	}
-	pthread_mutex_unlock(&mutex_pinned);
 }
 
 // simple - get pre-allocated pinned memory
 float *cuda_make_array_pinned_preallocated(float *x, size_t n)
 {
-	pthread_mutex_lock(&mutex_pinned);
+	TAT(TATPARMS);
+
+	std::scoped_lock lock(mutex_pinned);
+
 	float *x_cpu = NULL;
 	const size_t memory_step = 512;// 4096;
 	const size_t size = sizeof(float)*n;
@@ -458,12 +502,13 @@ float *cuda_make_array_pinned_preallocated(float *x, size_t n)
 		CHECK_CUDA(status);
 	}
 
-	pthread_mutex_unlock(&mutex_pinned);
 	return x_cpu;
 }
 
 float *cuda_make_array_pinned(float *x, size_t n)
 {
+	TAT(TATPARMS);
+
 	float *x_gpu;
 	size_t size = sizeof(float)*n;
 	//cudaError_t status = cudaMalloc((void **)&x_gpu, size);
@@ -484,6 +529,8 @@ float *cuda_make_array_pinned(float *x, size_t n)
 
 float *cuda_make_array(float *x, size_t n)
 {
+	TAT(TATPARMS);
+
 	const size_t size = n * sizeof(float);
 //    printf("allocating CUDA memory: %d floats (%s)\n", n, size_to_IEC_string(size));
 
@@ -507,6 +554,8 @@ float *cuda_make_array(float *x, size_t n)
 
 void **cuda_make_array_pointers(void **x, size_t n)
 {
+	TAT(TATPARMS);
+
 	void **x_gpu;
 	size_t size = sizeof(void*) * n;
 	cudaError_t status = cudaMalloc((void **)&x_gpu, size);
@@ -525,6 +574,8 @@ void **cuda_make_array_pointers(void **x, size_t n)
 
 void cuda_random(float *x_gpu, size_t n)
 {
+	TAT(TATPARMS);
+
 	static curandGenerator_t gen[16];
 	static int init[16] = {0};
 	int i = cuda_get_device();
@@ -539,6 +590,8 @@ void cuda_random(float *x_gpu, size_t n)
 
 float cuda_compare(float *x_gpu, float *x, size_t n, char *s)
 {
+	TAT(TATPARMS);
+
 	float* tmp = (float*)xcalloc(n, sizeof(float));
 	cuda_pull_array(x_gpu, tmp, n);
 	//int i;
@@ -552,6 +605,8 @@ float cuda_compare(float *x_gpu, float *x, size_t n, char *s)
 
 int *cuda_make_int_array(size_t n)
 {
+	TAT(TATPARMS);
+
 	int *x_gpu;
 	size_t size = sizeof(int)*n;
 	cudaError_t status = cudaMalloc((void **)&x_gpu, size);
@@ -562,6 +617,8 @@ int *cuda_make_int_array(size_t n)
 
 int *cuda_make_int_array_new_api(int *x, size_t n)
 {
+	TAT(TATPARMS);
+
 	int *x_gpu;
 	size_t size = sizeof(int)*n;
 	cudaError_t status = cudaMalloc((void **)&x_gpu, size);
@@ -580,6 +637,8 @@ int *cuda_make_int_array_new_api(int *x, size_t n)
 
 void cuda_free(float *x_gpu)
 {
+	TAT(TATPARMS);
+
 	//cudaStreamSynchronize(get_cuda_stream());
 	cudaError_t status = cudaFree(x_gpu);
 	CHECK_CUDA(status);
@@ -587,6 +646,8 @@ void cuda_free(float *x_gpu)
 
 void cuda_free_host(float *x_cpu)
 {
+	TAT(TATPARMS);
+
 	//cudaStreamSynchronize(get_cuda_stream());
 	cudaError_t status = cudaFreeHost(x_cpu);
 	CHECK_CUDA(status);
@@ -594,6 +655,8 @@ void cuda_free_host(float *x_cpu)
 
 void cuda_push_array(float *x_gpu, float *x, size_t n)
 {
+	TAT(TATPARMS);
+
 	const size_t size = n * sizeof(float);
 //    printf("cuda_push_array(): src=%p, dst=%p, n=%d, total_size=%d (%s)\n", x, x_gpu, n, size, size_to_IEC_string(size));
 //    cudaError_t status = cudaMemcpy(x_gpu, x, size, cudaMemcpyHostToDevice);
@@ -603,6 +666,8 @@ void cuda_push_array(float *x_gpu, float *x, size_t n)
 
 void cuda_pull_array(float *x_gpu, float *x, size_t n)
 {
+	TAT(TATPARMS);
+
 	size_t size = sizeof(float)*n;
 	//cudaError_t status = cudaMemcpy(x, x_gpu, size, cudaMemcpyDeviceToHost);
 	//printf("cuda_pull_array - get_cuda_stream() = %d \n", get_cuda_stream());
@@ -613,6 +678,8 @@ void cuda_pull_array(float *x_gpu, float *x, size_t n)
 
 void cuda_pull_array_async(float *x_gpu, float *x, size_t n)
 {
+	TAT(TATPARMS);
+
 	size_t size = sizeof(float)*n;
 	cudaError_t status = cudaMemcpyAsync(x, x_gpu, size, cudaMemcpyDefault, get_cuda_stream());
 	check_cuda_error(status, DARKNET_LOC);

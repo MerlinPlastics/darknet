@@ -1,15 +1,8 @@
 #define _CRT_RAND_S
-#include <stdlib.h>
 
-#include "utils.hpp"
-#include <stdio.h>
-#include <string.h>
-#include <stdarg.h>
-#include <math.h>
-#include <assert.h>
-#include <float.h>
-#include <limits.h>
+#include <csignal>
 #include <regex>
+#include "darknet_internal.hpp"
 #include "darkunistd.hpp"
 
 #ifdef WIN32
@@ -22,11 +15,11 @@
 #include <execinfo.h>
 #endif
 
-#include "darknet_version.h"
-#include "darknet_format_and_colour.hpp"
 
+void *xmalloc_location(const size_t size, const char * const filename, const char * const funcname, const int line)
+{
+	TAT(TATPARMS);
 
-void *xmalloc_location(const size_t size, const char * const filename, const char * const funcname, const int line) {
 	void *ptr=malloc(size);
 	if(!ptr) {
 		malloc_error(size, filename, funcname, line);
@@ -34,7 +27,10 @@ void *xmalloc_location(const size_t size, const char * const filename, const cha
 	return ptr;
 }
 
-void *xcalloc_location(const size_t nmemb, const size_t size, const char * const filename, const char * const funcname, const int line) {
+void *xcalloc_location(const size_t nmemb, const size_t size, const char * const filename, const char * const funcname, const int line)
+{
+	TAT(TATPARMS);
+
 	void *ptr=calloc(nmemb, size);
 	if(!ptr) {
 		calloc_error(nmemb * size, filename, funcname, line);
@@ -42,7 +38,10 @@ void *xcalloc_location(const size_t nmemb, const size_t size, const char * const
 	return ptr;
 }
 
-void *xrealloc_location(void *ptr, const size_t size, const char * const filename, const char * const funcname, const int line) {
+void *xrealloc_location(void *ptr, const size_t size, const char * const filename, const char * const funcname, const int line)
+{
+	TAT(TATPARMS);
+
 	ptr=realloc(ptr,size);
 	if(!ptr) {
 		realloc_error(size, filename, funcname, line);
@@ -52,6 +51,8 @@ void *xrealloc_location(void *ptr, const size_t size, const char * const filenam
 
 double what_time_is_it_now()
 {
+	TAT(TATPARMS);
+
 	struct timeval time;
 	if (gettimeofday(&time, NULL)) {
 		return 0;
@@ -66,6 +67,8 @@ double what_time_is_it_now()
 
 int *read_map(char *filename)
 {
+	TAT(TATPARMS);
+
 	int n = 0;
 	int *map = 0;
 	char *str;
@@ -83,6 +86,8 @@ int *read_map(char *filename)
 
 void sorta_shuffle(void *arr, size_t n, size_t size, size_t sections)
 {
+	TAT(TATPARMS);
+
 	size_t i;
 	for(i = 0; i < sections; ++i){
 		size_t start = n*i/sections;
@@ -94,6 +99,8 @@ void sorta_shuffle(void *arr, size_t n, size_t size, size_t sections)
 
 void shuffle(void *arr, size_t n, size_t size)
 {
+	TAT(TATPARMS);
+
 	size_t i;
 	void* swp = (void*)xcalloc(1, size);
 	for(i = 0; i < n-1; ++i){
@@ -107,6 +114,8 @@ void shuffle(void *arr, size_t n, size_t size)
 
 void del_arg(int argc, char **argv, int index)
 {
+	TAT(TATPARMS);
+
 	int i;
 	for(i = index; i < argc-1; ++i) argv[i] = argv[i+1];
 	argv[i] = 0;
@@ -114,6 +123,8 @@ void del_arg(int argc, char **argv, int index)
 
 int find_arg(int argc, char* argv[], const char * const arg)
 {
+	TAT(TATPARMS);
+
 	int i;
 	for(i = 0; i < argc; ++i) {
 		if(!argv[i]) continue;
@@ -127,6 +138,8 @@ int find_arg(int argc, char* argv[], const char * const arg)
 
 int find_int_arg(int argc, char **argv, const char * const arg, int def)
 {
+	TAT(TATPARMS);
+
 	int i;
 	for(i = 0; i < argc-1; ++i){
 		if(!argv[i]) continue;
@@ -142,6 +155,8 @@ int find_int_arg(int argc, char **argv, const char * const arg, int def)
 
 float find_float_arg(int argc, char **argv, const char * const arg, float def)
 {
+	TAT(TATPARMS);
+
 	int i;
 	for(i = 0; i < argc-1; ++i){
 		if(!argv[i]) continue;
@@ -157,6 +172,8 @@ float find_float_arg(int argc, char **argv, const char * const arg, float def)
 
 char *find_char_arg(int argc, char **argv, char *arg, char *def)
 {
+	TAT(TATPARMS);
+
 	int i;
 	for(i = 0; i < argc-1; ++i){
 		if(!argv[i]) continue;
@@ -173,6 +190,8 @@ char *find_char_arg(int argc, char **argv, char *arg, char *def)
 
 char *basecfg(char *cfgfile)
 {
+	TAT(TATPARMS);
+
 	char *c = cfgfile;
 	char *next;
 	while((next = strchr(c, '/')))
@@ -188,16 +207,23 @@ char *basecfg(char *cfgfile)
 
 int alphanum_to_int(char c)
 {
+	TAT(TATPARMS);
+
 	return (c < 58) ? c - 48 : c-87;
 }
+
 char int_to_alphanum(int i)
 {
+	TAT(TATPARMS);
+
 	if (i == 36) return '.';
 	return (i < 10) ? i + 48 : i + 87;
 }
 
 void pm(int M, int N, float *A)
 {
+	TAT(TATPARMS);
+
 	int i,j;
 	for(i =0 ; i < M; ++i){
 		printf("%d ", i+1);
@@ -211,6 +237,8 @@ void pm(int M, int N, float *A)
 
 void find_replace(const char* str, char* orig, char* rep, char* output)
 {
+	TAT(TATPARMS);
+
 	char* buffer = (char*)calloc(8192, sizeof(char));
 	char *p;
 
@@ -229,6 +257,8 @@ void find_replace(const char* str, char* orig, char* rep, char* output)
 
 void trim(char *str)
 {
+	TAT(TATPARMS);
+
 	char* buffer = (char*)xcalloc(8192, sizeof(char));
 	sprintf(buffer, "%s", str);
 
@@ -247,6 +277,8 @@ void trim(char *str)
 
 void find_replace_extension(char *str, char *orig, char *rep, char *output)
 {
+	TAT(TATPARMS);
+
 	char* buffer = (char*)calloc(8192, sizeof(char));
 
 	sprintf(buffer, "%s", str);
@@ -266,6 +298,8 @@ void find_replace_extension(char *str, char *orig, char *rep, char *output)
 
 void replace_image_to_label(const char* input_path, char* output_path)
 {
+	TAT(TATPARMS);
+
 	find_replace(input_path, "/images/train2017/", "/labels/train2017/", output_path);    // COCO
 	find_replace(output_path, "/images/val2017/", "/labels/val2017/", output_path);        // COCO
 	find_replace(output_path, "/JPEGImages/", "/labels/", output_path);    // PascalVOC
@@ -312,11 +346,15 @@ void replace_image_to_label(const char* input_path, char* output_path)
 
 float sec(clock_t clocks)
 {
+	TAT(TATPARMS);
+
 	return (float)clocks/CLOCKS_PER_SEC;
 }
 
 void top_k(float *a, int n, int k, int *index)
 {
+	TAT(TATPARMS);
+
 	int i,j;
 	for(j = 0; j < k; ++j) index[j] = -1;
 	for(i = 0; i < n; ++i){
@@ -334,6 +372,8 @@ void top_k(float *a, int n, int k, int *index)
 
 void log_backtrace()
 {
+	TAT(TATPARMS);
+
 	#define MAX_STACK_FRAMES 50
 	void * stack[MAX_STACK_FRAMES];
 
@@ -379,28 +419,30 @@ void log_backtrace()
 }
 
 
-/* When things start going wrong, it isn't unusual for multiple threads to exit at the same time.  Multiple calls to
-* darknet_fatal_error() results in overlapping messages, or we may not understand exactly which call was the first
-* one to cause the original error.  To prevent this confusion, we use a mutex lock and will allow a single thread
-* at a time to call into darknet_fatal_error().
-*/
-pthread_mutex_t darknet_fatal_error_critical_section = PTHREAD_MUTEX_INITIALIZER;
+namespace
+{
+	/* When things start going wrong, it isn't unusual for multiple threads to exit at the same time.  Multiple calls to
+	 * darknet_fatal_error() results in overlapping messages, or we may not understand exactly which call was the first
+	 * one to cause the original error.  To prevent this confusion, we use a mutex lock and will allow a single thread
+	 * at a time to call into darknet_fatal_error().
+	 */
+	static std::timed_mutex darknet_fatal_error_mutex;
+}
+
 
 void darknet_fatal_error(const char * const filename, const char * const funcname, const int line, const char * const msg, ...)
 {
 	const int saved_errno = errno;
 
-	pthread_mutex_lock(&darknet_fatal_error_critical_section);
+	// make an attempt to lock, but proceed even if the lock failed (we're fatally exiting anyway!)
+	const auto is_locked = darknet_fatal_error_mutex.try_lock_for(std::chrono::seconds(5));
 
 	// only log the message and the rest of the information if this is the first call into darknet_fatal_error()
 	if (Darknet::CfgAndState::get().must_immediately_exit == false)
 	{
 		Darknet::CfgAndState::get().must_immediately_exit = true;
 
-		fprintf(stderr,
-			"\n"
-			"* * * * * * * * * * * * * * * * * * * * * * * * * * * * *\n");
-//			"* A fatal error has been detected.  Darknet will now exit.\n");
+		fprintf(stderr, "\n* * * * * * * * * * * * * * * * * * * * * * * * * * * * *\n");
 
 		if (saved_errno != 0)
 		{
@@ -412,7 +454,6 @@ void darknet_fatal_error(const char * const filename, const char * const funcnam
 
 		fprintf(stderr, "* Error location: %s, %s(), line #%d\n", filename, funcname, line);
 		fprintf(stderr, "* Error message:  %s", Darknet::in_colour(Darknet::EColour::kBrightRed).c_str());
-
 		va_list args;
 		va_start(args, msg);
 		vfprintf(stderr, msg, args);
@@ -429,13 +470,26 @@ void darknet_fatal_error(const char * const filename, const char * const funcnam
 		log_backtrace();
 	}
 
-	pthread_mutex_unlock(&darknet_fatal_error_critical_section);
+	std::fflush(stdout);
+	std::fflush(stderr);
+	std::cout << std::flush;
+	std::cerr << std::flush;
 
-	exit(EXIT_FAILURE);
+	if (is_locked)
+	{
+		darknet_fatal_error_mutex.unlock();
+	}
+
+	// Don't bother trying to exit() cleanly since some threads might be tied up in CUDA calls that
+	// tend to hang when things go wrong.  Reset the signal handler to the default action and abort.
+	std::signal(SIGABRT, SIG_DFL);
+	std::abort();
 }
 
 const char * size_to_IEC_string(const size_t size)
 {
+	TAT(TATPARMS);
+
 	const float bytes = (double)size;
 	const float KiB = 1024;
 	const float MiB = 1024 * KiB;
@@ -473,6 +527,8 @@ void file_error(const char * const s, const char * const filename, const char * 
 
 list *split_str(char *s, char delim)
 {
+	TAT(TATPARMS);
+
 	size_t i;
 	size_t len = strlen(s);
 	list *l = make_list();
@@ -488,6 +544,8 @@ list *split_str(char *s, char delim)
 
 void strip(char *s)
 {
+	TAT(TATPARMS);
+
 	if (s == nullptr)
 	{
 		return;
@@ -551,6 +609,8 @@ void strip(char *s)
 
 void strip_args(char *s)
 {
+	TAT(TATPARMS);
+
 	size_t i;
 	size_t len = strlen(s);
 	size_t offset = 0;
@@ -564,6 +624,8 @@ void strip_args(char *s)
 
 void strip_char(char *s, char bad)
 {
+	TAT(TATPARMS);
+
 	size_t i;
 	size_t len = strlen(s);
 	size_t offset = 0;
@@ -577,6 +639,8 @@ void strip_char(char *s, char bad)
 
 void free_ptrs(void **ptrs, int n)
 {
+	TAT(TATPARMS);
+
 	int i;
 	for(i = 0; i < n; ++i) free(ptrs[i]);
 	free(ptrs);
@@ -585,6 +649,8 @@ void free_ptrs(void **ptrs, int n)
 
 char * fgetl(FILE *fp)
 {
+	TAT(TATPARMS);
+
 	if (feof(fp))
 	{
 		return nullptr;
@@ -639,6 +705,8 @@ char * fgetl(FILE *fp)
 
 int read_int(int fd)
 {
+	TAT(TATPARMS);
+
 	int n = 0;
 	int next = read(fd, &n, sizeof(int));
 	if(next <= 0) return -1;
@@ -647,6 +715,8 @@ int read_int(int fd)
 
 void write_int(int fd, int n)
 {
+	TAT(TATPARMS);
+
 	int next = write(fd, &n, sizeof(int));
 	if(next <= 0)
 	{
@@ -656,6 +726,8 @@ void write_int(int fd, int n)
 
 int read_all_fail(int fd, char *buffer, size_t bytes)
 {
+	TAT(TATPARMS);
+
 	size_t n = 0;
 	while(n < bytes){
 		int next = read(fd, buffer + n, bytes-n);
@@ -667,6 +739,8 @@ int read_all_fail(int fd, char *buffer, size_t bytes)
 
 int write_all_fail(int fd, char *buffer, size_t bytes)
 {
+	TAT(TATPARMS);
+
 	size_t n = 0;
 	while(n < bytes){
 		size_t next = write(fd, buffer + n, bytes-n);
@@ -678,6 +752,8 @@ int write_all_fail(int fd, char *buffer, size_t bytes)
 
 void read_all(int fd, char *buffer, size_t bytes)
 {
+	TAT(TATPARMS);
+
 	size_t n = 0;
 	while(n < bytes){
 		int next = read(fd, buffer + n, bytes-n);
@@ -691,6 +767,8 @@ void read_all(int fd, char *buffer, size_t bytes)
 
 void write_all(int fd, char *buffer, size_t bytes)
 {
+	TAT(TATPARMS);
+
 	size_t n = 0;
 	while(n < bytes){
 		size_t next = write(fd, buffer + n, bytes-n);
@@ -705,6 +783,8 @@ void write_all(int fd, char *buffer, size_t bytes)
 
 char *copy_string(char *s)
 {
+	TAT(TATPARMS);
+
 	if(!s)
 	{
 		return NULL;
@@ -729,6 +809,8 @@ char *copy_string(char *s)
 
 list *parse_csv_line(char *line)
 {
+	TAT(TATPARMS);
+
 	list *l = make_list();
 	char *c, *p;
 	int in = 0;
@@ -746,6 +828,8 @@ list *parse_csv_line(char *line)
 
 int count_fields(char *line)
 {
+	TAT(TATPARMS);
+
 	int count = 0;
 	int done = 0;
 	char *c;
@@ -758,6 +842,8 @@ int count_fields(char *line)
 
 float *parse_fields(char *line, int n)
 {
+	TAT(TATPARMS);
+
 	float* field = (float*)xcalloc(n, sizeof(float));
 	char *c, *p, *end;
 	int count = 0;
@@ -778,6 +864,8 @@ float *parse_fields(char *line, int n)
 
 float sum_array(float *a, int n)
 {
+	TAT(TATPARMS);
+
 	int i;
 	float sum = 0;
 	for(i = 0; i < n; ++i) sum += a[i];
@@ -786,11 +874,15 @@ float sum_array(float *a, int n)
 
 float mean_array(float *a, int n)
 {
+	TAT(TATPARMS);
+
 	return sum_array(a,n)/n;
 }
 
 void mean_arrays(float **a, int n, int els, float *avg)
 {
+	TAT(TATPARMS);
+
 	int i;
 	int j;
 	memset(avg, 0, els*sizeof(float));
@@ -806,6 +898,8 @@ void mean_arrays(float **a, int n, int els, float *avg)
 
 void print_statistics(float *a, int n)
 {
+	TAT(TATPARMS);
+
 	float m = mean_array(a, n);
 	float v = variance_array(a, n);
 	printf("MSE: %.6f, Mean: %.6f, Variance: %.6f\n", mse_array(a, n), m, v);
@@ -813,6 +907,8 @@ void print_statistics(float *a, int n)
 
 float variance_array(float *a, int n)
 {
+	TAT(TATPARMS);
+
 	int i;
 	float sum = 0;
 	float mean = mean_array(a, n);
@@ -823,6 +919,8 @@ float variance_array(float *a, int n)
 
 int constrain_int(int a, int min, int max)
 {
+	TAT(TATPARMS);
+
 	if (a < min) return min;
 	if (a > max) return max;
 	return a;
@@ -830,6 +928,8 @@ int constrain_int(int a, int min, int max)
 
 float constrain(float min, float max, float a)
 {
+	TAT(TATPARMS);
+
 	if (a < min) return min;
 	if (a > max) return max;
 	return a;
@@ -837,6 +937,8 @@ float constrain(float min, float max, float a)
 
 float dist_array(float *a, float *b, int n, int sub)
 {
+	TAT(TATPARMS);
+
 	int i;
 	float sum = 0;
 	for(i = 0; i < n; i += sub) sum += pow(a[i]-b[i], 2);
@@ -845,6 +947,8 @@ float dist_array(float *a, float *b, int n, int sub)
 
 float mse_array(float *a, int n)
 {
+	TAT(TATPARMS);
+
 	int i;
 	float sum = 0;
 	for(i = 0; i < n; ++i) sum += a[i]*a[i];
@@ -853,6 +957,8 @@ float mse_array(float *a, int n)
 
 void normalize_array(float *a, int n)
 {
+	TAT(TATPARMS);
+
 	int i;
 	float mu = mean_array(a,n);
 	float sigma = sqrt(variance_array(a,n));
@@ -865,6 +971,8 @@ void normalize_array(float *a, int n)
 
 void translate_array(float *a, int n, float s)
 {
+	TAT(TATPARMS);
+
 	int i;
 	for(i = 0; i < n; ++i){
 		a[i] += s;
@@ -873,6 +981,8 @@ void translate_array(float *a, int n, float s)
 
 float mag_array(float *a, int n)
 {
+	TAT(TATPARMS);
+
 	int i;
 	float sum = 0;
 	for(i = 0; i < n; ++i){
@@ -884,6 +994,8 @@ float mag_array(float *a, int n)
 // indicies to skip is a bit array
 float mag_array_skip(float *a, int n, int * indices_to_skip)
 {
+	TAT(TATPARMS);
+
 	int i;
 	float sum = 0;
 	for (i = 0; i < n; ++i) {
@@ -896,6 +1008,8 @@ float mag_array_skip(float *a, int n, int * indices_to_skip)
 
 void scale_array(float *a, int n, float s)
 {
+	TAT(TATPARMS);
+
 	int i;
 	for(i = 0; i < n; ++i){
 		a[i] *= s;
@@ -904,6 +1018,8 @@ void scale_array(float *a, int n, float s)
 
 int sample_array(float *a, int n)
 {
+	TAT(TATPARMS);
+
 	float sum = sum_array(a, n);
 	scale_array(a, n, 1. / sum);
 	float r = rand_uniform(0, 1);
@@ -917,6 +1033,8 @@ int sample_array(float *a, int n)
 
 int sample_array_custom(float *a, int n)
 {
+	TAT(TATPARMS);
+
 	float sum = sum_array(a, n);
 	scale_array(a, n, 1./sum);
 	float r = rand_uniform(0, 1);
@@ -931,6 +1049,8 @@ int sample_array_custom(float *a, int n)
 
 int max_index(float *a, int n)
 {
+	TAT(TATPARMS);
+
 	if(n <= 0) return -1;
 	int i, max_i = 0;
 	float max = a[0];
@@ -945,6 +1065,8 @@ int max_index(float *a, int n)
 
 int top_max_index(float *a, int n, int k)
 {
+	TAT(TATPARMS);
+
 	if (n <= 0) return -1;
 	float *values = (float*)xcalloc(k, sizeof(float));
 	int *indexes = (int*)xcalloc(k, sizeof(int));
@@ -970,6 +1092,8 @@ int top_max_index(float *a, int n, int k)
 
 int int_index(int *a, int val, int n)
 {
+	TAT(TATPARMS);
+
 	int i;
 	for (i = 0; i < n; ++i) {
 		if (a[i] == val) return i;
@@ -979,6 +1103,8 @@ int int_index(int *a, int val, int n)
 
 int rand_int(int min, int max)
 {
+	TAT(TATPARMS);
+
 	if (max < min){
 		int s = min;
 		min = max;
@@ -991,6 +1117,8 @@ int rand_int(int min, int max)
 // From http://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform
 float rand_normal()
 {
+	TAT(TATPARMS);
+
 	static int haveSpare = 0;
 	static double rand1, rand2;
 
@@ -1023,6 +1151,8 @@ return sum-n/2.;
 
 size_t rand_size_t()
 {
+	TAT(TATPARMS);
+
 	return  ((size_t)(random_gen()&0xff) << 56) |
 			((size_t)(random_gen()&0xff) << 48) |
 			((size_t)(random_gen()&0xff) << 40) |
@@ -1035,6 +1165,8 @@ size_t rand_size_t()
 
 float rand_uniform(float min, float max)
 {
+	TAT(TATPARMS);
+
 	if(max < min){
 		float swap = min;
 		min = max;
@@ -1052,6 +1184,8 @@ float rand_uniform(float min, float max)
 
 float rand_scale(float s)
 {
+	TAT(TATPARMS);
+
 	float scale = rand_uniform_strong(1, s);
 	if(random_gen()%2) return scale;
 	return 1./scale;
@@ -1059,6 +1193,8 @@ float rand_scale(float s)
 
 float **one_hot_encode(float *a, int n, int k)
 {
+	TAT(TATPARMS);
+
 	int i;
 	float** t = (float**)xcalloc(n, sizeof(float*));
 	for(i = 0; i < n; ++i){
@@ -1074,6 +1210,8 @@ static unsigned int x = 123456789, y = 362436069, z = 521288629;
 // Marsaglia's xorshf96 generator: period 2^96-1
 unsigned int random_gen_fast(void)
 {
+	TAT(TATPARMS);
+
 	unsigned int t;
 	x ^= x << 16;
 	x ^= x >> 5;
@@ -1089,11 +1227,15 @@ unsigned int random_gen_fast(void)
 
 float random_float_fast()
 {
+	TAT(TATPARMS);
+
 	return ((float)random_gen_fast() / (float)UINT_MAX);
 }
 
 int rand_int_fast(int min, int max)
 {
+	TAT(TATPARMS);
+
 	if (max < min) {
 		int s = min;
 		min = max;
@@ -1105,6 +1247,8 @@ int rand_int_fast(int min, int max)
 
 unsigned int random_gen()
 {
+	TAT(TATPARMS);
+
 	unsigned int rnd = 0;
 #ifdef WIN32
 	rand_s(&rnd);
@@ -1119,6 +1263,8 @@ unsigned int random_gen()
 
 float random_float()
 {
+	TAT(TATPARMS);
+
 	unsigned int rnd = 0;
 #ifdef WIN32
 	rand_s(&rnd);
@@ -1137,6 +1283,8 @@ float random_float()
 
 float rand_uniform_strong(float min, float max)
 {
+	TAT(TATPARMS);
+
 	if (max < min) {
 		float swap = min;
 		min = max;
@@ -1147,6 +1295,8 @@ float rand_uniform_strong(float min, float max)
 
 float rand_precalc_random(float min, float max, float random_part)
 {
+	TAT(TATPARMS);
+
 	if (max < min) {
 		float swap = min;
 		min = max;
@@ -1159,6 +1309,8 @@ float rand_precalc_random(float min, float max, float random_part)
 
 double double_rand(void)
 {
+	TAT(TATPARMS);
+
 	double d;
 	do {
 		d = (((rand() * RS_SCALE) + rand()) * RS_SCALE + rand()) * RS_SCALE;
@@ -1168,11 +1320,15 @@ double double_rand(void)
 
 unsigned int uint_rand(unsigned int less_than)
 {
+	TAT(TATPARMS);
+
 	return (unsigned int)((less_than)* double_rand());
 }
 
 int check_array_is_nan(float *arr, int size)
 {
+	TAT(TATPARMS);
+
 	int i;
 	for (i = 0; i < size; ++i) {
 		if (isnan(arr[i])) return 1;
@@ -1182,6 +1338,8 @@ int check_array_is_nan(float *arr, int size)
 
 int check_array_is_inf(float *arr, int size)
 {
+	TAT(TATPARMS);
+
 	int i;
 	for (i = 0; i < size; ++i) {
 		if (isinf(arr[i])) return 1;
@@ -1191,6 +1349,8 @@ int check_array_is_inf(float *arr, int size)
 
 int *random_index_order(int min, int max)
 {
+	TAT(TATPARMS);
+
 	int *inds = (int *)xcalloc(max - min, sizeof(int));
 	int i;
 	for (i = min; i < max; ++i) {
@@ -1207,6 +1367,8 @@ int *random_index_order(int min, int max)
 
 int max_int_index(int *a, int n)
 {
+	TAT(TATPARMS);
+
 	if (n <= 0) return -1;
 	int i, max_i = 0;
 	int max = a[0];
@@ -1223,6 +1385,8 @@ int max_int_index(int *a, int n)
 // Absolute box from relative coordinate bounding box and image size
 boxabs box_to_boxabs(const box* b, const int img_w, const int img_h, const int bounds_check)
 {
+	TAT(TATPARMS);
+
 	boxabs ba;
 	ba.left = (b->x - b->w / 2.)*img_w;
 	ba.right = (b->x + b->w / 2.)*img_w;
@@ -1241,6 +1405,8 @@ boxabs box_to_boxabs(const box* b, const int img_w, const int img_h, const int b
 
 int make_directory(char *path, int mode)
 {
+	TAT(TATPARMS);
+
 #ifdef WIN32
 	return _mkdir(path);
 #else
@@ -1250,6 +1416,8 @@ int make_directory(char *path, int mode)
 
 unsigned long custom_hash(char *str)
 {
+	TAT(TATPARMS);
+
 	unsigned long hash = 5381;
 	int c;
 
@@ -1273,6 +1441,8 @@ unsigned long custom_hash(char *str)
 
 bool is_live_stream(const char * path)
 {
+	TAT(TATPARMS);
+
 	const char *url_schema = "://";
 	return (NULL != strstr(path, url_schema));
 }

@@ -105,6 +105,17 @@ Chart & Chart::initialize()
 		}
 	}
 
+	// we're running out of space to put text in the chart!
+
+	// the version number needs to be rotated 90 degrees and then inserted into the edge of the chart
+	txt = "Darknet/YOLO v" DARKNET_VERSION_SHORT;
+	const int border = 5;
+	text_size = cv::Size(border * 2, border * 2) + cv::getTextSize(txt, cv::FONT_HERSHEY_COMPLEX_SMALL, 0.6, 1, nullptr);
+	cv::Mat tmp(text_size, CV_8UC3, CV_RGB(255, 255, 255));
+	cv::putText(tmp, txt, cv::Point(border, tmp.rows - border), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.6, CV_RGB(128, 128, 128), 1, cv::LINE_AA);
+	cv::rotate(tmp, tmp, cv::ROTATE_90_COUNTERCLOCKWISE);
+	tmp.copyTo(mat(cv::Rect(0, grid_rect.height - tmp.rows, tmp.cols, tmp.rows)));
+
 	// draw the chart lines and axis values
 
 	// vertical lines starting on the left with zero and working our way to the right side of the grid
@@ -188,7 +199,9 @@ Chart & Chart::initialize()
 
 Chart & Chart::save_to_disk()
 {
-	cv::imwrite(filename, mat, {cv::ImwriteFlags::IMWRITE_PNG_COMPRESSION, 0});
+	TAT(TATPARMS);
+
+	cv::imwrite(filename, mat, {cv::ImwriteFlags::IMWRITE_PNG_COMPRESSION, 3});
 
 	return *this;
 }
@@ -197,6 +210,8 @@ Chart & Chart::save_to_disk()
 Chart & Chart::update_loss(const int current_iteration, const float loss)
 {
 	/// @note This is called at @em every iteration to update the chart.
+
+	TAT(TATPARMS);
 
 	cv::Mat grid = mat(grid_rect);
 	const cv::Size grid_size = grid.size();
@@ -226,6 +241,8 @@ Chart & Chart::update_accuracy(const float accuracy)
 Chart & Chart::update_accuracy(const int current_iteration, const float accuracy)
 {
 	/// @note This is called only when a new mAP% value has been calculated.
+
+	TAT(TATPARMS);
 
 	cv::Mat grid = mat(grid_rect);
 	const cv::Size grid_size = grid.size();
@@ -271,6 +288,8 @@ Chart & Chart::update_accuracy(const int current_iteration, const float accuracy
 Chart & Chart::update_bottom_text(const float seconds_remaining)
 {
 	// draw the text at the bottom of the chart
+
+	TAT(TATPARMS);
 
 	const cv::Size grid_size = grid_rect.size();
 	cv::Size text_size;
@@ -358,6 +377,8 @@ Chart & Chart::update_bottom_text(const float seconds_remaining)
 
 Chart & Chart::update_save_and_display(const int current_iteration, const float loss, const float seconds_remaining, const bool dont_show)
 {
+	TAT(TATPARMS);
+
 	update_loss(current_iteration, loss);
 
 	bool need_to_update = false;
@@ -369,7 +390,8 @@ Chart & Chart::update_save_and_display(const int current_iteration, const float 
 		need_to_update = true;
 	}
 
-	if (current_iteration % 100 == 0)
+	if ((current_iteration == 5) or		// update soon after training has started so the user has an idea of how long it will take
+		(current_iteration % 100) == 0)	// update every 100th iteration
 	{
 		need_to_update = true;
 		need_to_save = true;

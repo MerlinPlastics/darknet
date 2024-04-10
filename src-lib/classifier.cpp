@@ -34,6 +34,8 @@ float *get_regression_values(char **labels, int n)
 
 void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus, int ngpus, int clear, int dont_show, int mjpeg_port, int calc_topk, int show_imgs, char* chart_path)
 {
+	TAT(TATPARMS);
+
 	int i;
 
 	float avg_loss = -1;
@@ -134,12 +136,12 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 
 	// This draws the initial blank chart.  Then see the call to update_train_loss_chart() below.
 	img = draw_initial_train_chart(windows_name, max_img_loss, net.max_batches, number_of_lines, img_size, dont_show, chart_path);
-	
+
 	data train;
 	data buffer;
-	pthread_t load_thread;
 	args.d = &buffer;
-	load_thread = load_data(args);
+
+	std::thread load_thread = std::thread(Darknet::run_image_loading_control_thread, args);
 
 	int iter_save = get_current_batch(net);
 	int iter_save_last = get_current_batch(net);
@@ -150,12 +152,13 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 	double start, time_remaining, avg_time = -1, alpha_time = 0.01;
 	start = what_time_is_it_now();
 
-	while(get_current_batch(net) < net.max_batches || net.max_batches == 0){
+	while(get_current_batch(net) < net.max_batches || net.max_batches == 0)
+	{
 		time=clock();
 
-		pthread_join(load_thread, 0);
+		load_thread.join();
 		train = buffer;
-		load_thread = load_data(args);
+		load_thread = std::thread(Darknet::run_image_loading_control_thread, args);
 
 		printf("Loaded: %lf seconds\n", sec(clock()-time));
 		time=clock();
@@ -223,7 +226,7 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 		}
 
 		update_train_loss_chart(windows_name, img, img_size, avg_loss, max_img_loss, i, net.max_batches, topk, draw_precision, topk_buff, avg_contrastive_acc / 100, dont_show, mjpeg_port, avg_time);
-		
+
 
 		if (i >= (iter_save + 1000)) {
 			iter_save = i;
@@ -244,7 +247,7 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 			sprintf(buff, "%s/%s_last.weights", backup_directory, base);
 			save_weights(net, buff);
 		}
-		free_data(train);
+		Darknet::free_data(train);
 	}
 #ifdef GPU
 	if (ngpus != 1) sync_nets(nets, ngpus, 0);
@@ -256,8 +259,8 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 	release_mat(&img);
 	destroy_all_windows_cv();
 
-	pthread_join(load_thread, 0);
-	free_data(buffer);
+	load_thread.join();
+	Darknet::free_data(buffer);
 
 	//free_network(net);
 	for (i = 0; i < ngpus; ++i) free_network(nets[i]);
@@ -318,18 +321,21 @@ void validate_classifier_crop(char *datacfg, char *filename, char *weightfile)
 	args.d = &buffer;
 	args.type = OLD_CLASSIFICATION_DATA;
 
-	pthread_t load_thread = load_data_in_thread(args);
-	for(i = 1; i <= splits; ++i){
+	std::thread load_thread(Darknet::load_single_image_data, args);
+
+	for(i = 1; i <= splits; ++i)
+	{
 		time=clock();
 
-		pthread_join(load_thread, 0);
+		load_thread.join();
 		val = buffer;
 
 		num = (i+1)*m/splits - i*m/splits;
 		char **part = paths+(i*m/splits);
-		if(i != splits){
+		if(i != splits)
+		{
 			args.paths = part;
-			load_thread = load_data_in_thread(args);
+			load_thread = std::thread(Darknet::load_single_image_data, args);
 		}
 		printf("Loaded: %d images in %lf seconds\n", val.X.rows, sec(clock()-time));
 
@@ -338,7 +344,7 @@ void validate_classifier_crop(char *datacfg, char *filename, char *weightfile)
 		avg_acc += acc[0];
 		avg_topk += acc[1];
 		printf("%d: top 1: %f, top %d: %f, %lf seconds, %d images\n", i, avg_acc/i, topk, avg_topk/i, sec(clock()-time), val.X.rows);
-		free_data(val);
+		Darknet::free_data(val);
 	}
 }
 
@@ -715,6 +721,8 @@ void try_classifier(char *datacfg, char *cfgfile, char *weightfile, char *filena
 
 void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *filename, int top)
 {
+	TAT(TATPARMS);
+
 	network net = parse_network_cfg_custom(cfgfile, 1, 0);
 	if(weightfile){
 		load_weights(&net, weightfile);
@@ -867,17 +875,22 @@ void test_classifier(char *datacfg, char *cfgfile, char *weightfile, int target_
 	args.d = &buffer;
 	args.type = OLD_CLASSIFICATION_DATA;
 
-	pthread_t load_thread = load_data_in_thread(args);
-	for(curr = net.batch; curr < m; curr += net.batch){
+	std::thread load_thread(Darknet::load_single_image_data, args);
+	for(curr = net.batch; curr < m; curr += net.batch)
+	{
 		time=clock();
 
-		pthread_join(load_thread, 0);
+		load_thread.join();
 		val = buffer;
 
-		if(curr < m){
+		if(curr < m)
+		{
 			args.paths = paths + curr;
-			if (curr + net.batch > m) args.n = m - curr;
-			load_thread = load_data_in_thread(args);
+			if (curr + net.batch > m)
+			{
+				args.n = m - curr;
+			}
+			load_thread = std::thread(Darknet::load_single_image_data, args);
 		}
 		fprintf(stderr, "Loaded: %d images in %lf seconds\n", val.X.rows, sec(clock()-time));
 
@@ -900,7 +913,7 @@ void test_classifier(char *datacfg, char *cfgfile, char *weightfile, int target_
 		free_matrix(pred);
 
 		fprintf(stderr, "%lf seconds, %d images, %d total\n", sec(clock()-time), val.X.rows, curr);
-		free_data(val);
+		Darknet::free_data(val);
 	}
 }
 
