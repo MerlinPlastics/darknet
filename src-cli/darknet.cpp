@@ -89,16 +89,14 @@ void average(int argc, char *argv[])
 void speed(char *cfgfile, int count)
 {
 	if (count == 0) count = 1000;
-	network net = parse_network_cfg(cfgfile);
-	set_batch_network(&net, 1);
-	int i;
+	network net = parse_network_cfg_custom(cfgfile, 1, 1);
 
 	printf("Testing %i iterations...", count);
 
 	double start = get_time_point();
 	//time_t start = time(0);
 	image im = make_image(net.w, net.h, net.c);
-	for(i = 0; i < count; ++i){
+	for(int i = 0; i < count; ++i){
 		network_predict(net, im.data);
 	}
 	//double t = difftime(time(0), start);

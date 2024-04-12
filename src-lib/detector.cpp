@@ -1868,7 +1868,7 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
 			darknet_fatal_error(DARKNET_LOC, "number of names and classes do not match");
 		}
 	}
-	srand(2222222); /// @todo Why is this being done this way here?
+	srand(time(0)); /// @todo Why is this being done this way here?
 	char buff[256];
 	char *input = buff;
 	char *json_buf = NULL;

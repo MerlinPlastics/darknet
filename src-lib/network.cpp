@@ -643,7 +643,7 @@ int resize_network(network *net, int w, int h)
 	//fflush(stderr);
 	for (i = 0; i < net->n; ++i){
 		layer l = net->layers[i];
-		//printf(" (resize %d: layer = %d) , ", i, l.type);
+		printf(" (resize %d: layer = %d)\n", i, l.type);
 		if(l.type == CONVOLUTIONAL){
 			resize_convolutional_layer(&l, w, h);
 		}

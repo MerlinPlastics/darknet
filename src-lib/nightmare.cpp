@@ -188,6 +188,18 @@ void run_nightmare(int argc, char **argv)
     char *input = argv[4];
     int max_layer = atoi(argv[5]);
 
+	/*
+	From https://pjreddie.com/darknet/nightmare/
+		-rounds n: change the number of rounds (default 1). More rounds means more images generated and usually more change to the original image.
+		-iters n: change the number of iterations per round (default 10). More iterations means more change to the image per round.
+		-range n: change the range of possible layers (default 1). If set to one, only the given layer is chosen at every iteration. Otherwise, a layer is chosen randomly within than range (e.g. 10 -range 3 will choose between layers 9-11).
+		-octaves n: change the number of possible scales (default 4). At one octave, only the full size image is examined. Each additional octave adds a smaller version of the image (3/4 the size of the previous octave).
+		-rate x: change the learning rate for the image (default .05). Higher means more change to the image per iteration but also some instability and imprecision.
+		-thresh x: change the threshold for features to be magnified (default 1.0). Only features over x standard deviations away from the mean are magnified in the target layer. A higher threshold means fewer features are magnified.
+		-zoom x: change the zoom applied to the image after each round (default 1.0). You can optionally add a zoom in (x < 1) or zoom out (x > 1) to be applied to the image after each round.
+		-rotate x: change the rotation applied after each round (default 0.0). Optional rotation after each round.
+	*/
+
     int range = find_int_arg(argc, argv, "-range", 1);
     int norm = find_int_arg(argc, argv, "-norm", 1);
     int rounds = find_int_arg(argc, argv, "-rounds", 1);
@@ -203,7 +215,7 @@ void run_nightmare(int argc, char **argv)
     int reconstruct = find_arg(argc, argv, "-reconstruct");
     int smooth_size = find_int_arg(argc, argv, "-smooth", 1);
 
-    network net = parse_network_cfg(cfg);
+    network net = parse_network_cfg_custom(cfg, 1, 1);
     load_weights(&net, weights);
     char *cfgbase = basecfg(cfg);
     char *imbase = basecfg(input);

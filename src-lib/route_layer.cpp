@@ -60,12 +60,12 @@ void resize_route_layer(route_layer *l, network *net)
 		layer next = net->layers[index];
 		l->outputs += next.outputs;
 		l->input_sizes[i] = next.outputs;
-		if(next.out_w == first.out_w && next.out_h == first.out_h){
+		//if(next.out_w == first.out_w && next.out_h == first.out_h){
 			l->out_c += next.out_c;
-		}else
+			/*}else
 		{
 			darknet_fatal_error(DARKNET_LOC, "different size of input layers: %d x %d, %d x %d", next.out_w, next.out_h, first.out_w, first.out_h);
-		}
+		}*/
 	}
 	l->out_c = l->out_c / l->groups;
 	l->outputs = l->outputs / l->groups;
