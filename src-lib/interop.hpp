@@ -21,17 +21,9 @@ struct bbox_t {
 	unsigned int class_id;         // class of object - from range [0, classes-1]
 };
 
-//struct image_t {
-//	int w;                        // width
-//	int h;                        // height
-//	int c;                        // number of chanels (3 - for RGB)
-//	float* data;                  // pointer to the image data
-//};
-
 struct bbox_t_container {
 	bbox_t candidates[C_SHARP_MAX_OBJECTS];
 	size_t size;
-	bbox_t* candidates_ptr;
 };
 
 struct detector_gpu_t {
@@ -44,7 +36,6 @@ struct detector_gpu_t {
 class InteropDetector
 {
 	std::shared_ptr<void> detector_gpu_ptr;
-	//std::string _cfg_filename, _weight_filename;
 	const int cur_gpu_id;
 
 public:
@@ -53,33 +44,19 @@ public:
 
 	std::vector<bbox_t> detect(std::string image_filename, float thresh = 0.2);
 	std::vector<bbox_t> detect(cv::Mat mat, float thresh = 0.2);
-	//std::vector<bbox_t> detect(image_t img, float thresh = 0.2);
 	std::vector<bbox_t> detect(image image, float thresh = 0.2);
 	//std::vector<bbox_t> detect(float* data, int size, int width, int height, int channels, float thresh = 0.2);
 
-
-private:
 	int get_net_width() const;
 	int get_net_height() const;
-	int get_net_color_depth() const;
-	//image_t load_image(std::string image_filename);
+	int get_net_channels() const;
+
+private:
 
 	float nms = .4;
 	bool wait_stream;
 
 public:
-	//std::vector<bbox_t> detect_resized(image_t img, int init_w, int init_h, float thresh = 0.2)
-	//{
-	//	if (img.data == NULL)
-	//		throw std::runtime_error("Image is empty");
-	//	auto detection_boxes = detect(img, thresh);
-
-	//	// Rescale the output values to the original input image
-	//	float wk = (float)init_w / img.w, hk = (float)init_h / img.h;
-	//	for (auto& i : detection_boxes) i.x *= wk, i.w *= wk, i.y *= hk, i.h *= hk;
-
-	//	return detection_boxes;
-	//}
 
 	std::vector<bbox_t> detect_resized(image img, int init_w, int init_h, float thresh = 0.2)
 	{
@@ -98,7 +75,7 @@ private:
 	image mat_to_image_resize(cv::Mat mat) const
 	{
 		image image = make_image(1,1,1);
-		if (mat.data == NULL) return image; // std::shared_ptr<image_t>(NULL);
+		if (mat.data == NULL) return image; 
 
 		cv::Size network_size = cv::Size(get_net_width(), get_net_height());
 		cv::Mat det_mat;
