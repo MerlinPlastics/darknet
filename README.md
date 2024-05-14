@@ -154,11 +154,15 @@ Open a normal `cmd.exe` command prompt window and run the following commands:
 winget install Git.Git
 winget install Kitware.CMake
 winget install nsis.nsis
-winget install Microsoft.VisualStudio.2022.Community --silent --override "--wait --quiet --add Microsoft.VisualStudio.Workload.NativeDesktop"
+winget install Microsoft.VisualStudio.2022.Community
 ```
 
-Be careful, that last line is quite long, make sure you copy all of it!
+At this point we need to modify the Visual Studio installation to include support for C++ applications:
 
+* click on the "Windows Start" menu and run "Visual Studio Installer"
+* click on `Modify`
+* select `Desktop Development With C++`
+* click on `Modify` in the bottom-right corner, and then click on `Yes`
 Once everything is downloaded and installed, click on the "Windows Start" menu again and select `Developer Command Prompt for VS 2022`.  **Do not** use PowerShell for these steps, you will run into problems!
 
 > Advanced users:
@@ -361,19 +365,15 @@ darknet detector -map -dont_show --verbose train animals.data animals.cfg
 
 # Roadmap
 
-Last updated 2024-04-30:
+Last updated 2024-05-13:
 
-## Short-term goals
+## Completed
 
 * [X] swap out qsort() for std::sort() where used during training (some other obscure ones remain)
-* [ ] swap out printf() for std::cout (in progress)
 * [X] get rid of check_mistakes, getchar(), and system()
 * [X] convert Darknet to use the C++ compiler (g++ on Linux, VisualStudio on Windows)
 * [X] fix Windows build
-* [ ] fix ARM build (Jetson devices)
 * [X] fix Python support
-* [ ] clean up .hpp files
-* [ ] re-write darknet.h
 * [X] build darknet library
 * [X] re-enable labels on predictions ("alphabet" code)
 * [X] re-enable CUDA/GPU code
@@ -382,10 +382,8 @@ Last updated 2024-04-30:
 * [X] do not hard-code the CUDA architecture
 * [X] better CUDA version information
 * [X] re-enable AVX
-* [ ] look into old zed camera support
 * [X] remove old solutions and Makefile
 * [X] make OpenCV non-optional
-* [ ] better and more consistent command line parsing
 * [X] remove dependency on the old pthread library
 * [X] remove STB
 * [X] re-write CMakeLists.txt to use the new CUDA detection
@@ -393,8 +391,17 @@ Last updated 2024-04-30:
 * [X] build out-of-source
 * [X] have better version number output
 
+## Short-term goals
+
+* [ ] swap out printf() for std::cout (in progress)
+* [ ] clean up .hpp files
+* [ ] re-write darknet.h
+* [ ] look into old zed camera support
+* [ ] better and more consistent command line parsing
+
 ## Mid-term goals
 
+* [ ] fix build for ARM-based Jetson devices
 * [ ] better use of `cv::Mat` instead of the custom `image` structure in C
 * [ ] do not cast `cv::Mat` to `void*` but use it as a proper C++ object
 * [ ] completely remove internal/obsolete `image` structure

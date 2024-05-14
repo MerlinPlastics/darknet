@@ -39,9 +39,10 @@ Darknet::CfgAndState & Darknet::CfgAndState::reset()
 	TAT(TATPARMS);
 
 	// Seeding the old C-style rand() is peppered all over the codebase for some reason.
-	// I'm hoping we can do it once, and then nor worry about it again.  Eventually we
+	// I'm hoping we can do it once, and then not worry about it again.  Eventually we
 	// can move to the new C++11 objects and functions for dealing with random numbers.
 	std::srand(std::time(nullptr));
+	// ... also see the seeding that happens in get_rnd_engine()
 
 	// prefer using 500 over 5e+02 when outputting floats
 	std::cout << std::fixed;
@@ -211,7 +212,8 @@ Darknet::CfgAndState & Darknet::CfgAndState::process_arguments(int argc, char **
 		}
 	}
 
-	if (args.count("verbose") > 0)
+	if (args.count("verbose"		) > 0 or
+		args.count("show_details"	) > 0) // old Darknet had "-show_details", which I didn't know about when I created "--verbose"
 	{
 		is_verbose = true;
 	}

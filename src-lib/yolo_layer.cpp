@@ -25,10 +25,26 @@ layer make_yolo_layer(int batch, int w, int h, int n, int total, int *mask, int 
 	l.classes = classes;
 	l.cost = (float*)xcalloc(1, sizeof(float));
 	l.biases = (float*)xcalloc(total * 2, sizeof(float));
-	if(mask) l.mask = mask;
-	else{
+
+	/* PR #51:
+	 * When the model is loaded in darknet, I'm working on allowing Python to access the model's information.
+	 * At this point, I'm sending the structural information of all layers of the model to Python, but when
+	 * passing the length of the bias pointer of the 'YOLO' layer, the length (nbiases) value is 0.
+	 *
+	 * For the YOLO layer, the bias value has a length of anchor * 2, and it would be great if this information
+	 * could also be confirmed from nbiases.
+	 */
+	l.nbiases = total * 2;
+
+	if(mask)
+	{
+		l.mask = mask;
+	}
+	else
+	{
 		l.mask = (int*)xcalloc(n, sizeof(int));
-		for(i = 0; i < n; ++i){
+		for(i = 0; i < n; ++i)
+		{
 			l.mask[i] = i;
 		}
 	}
@@ -39,13 +55,23 @@ layer make_yolo_layer(int batch, int w, int h, int n, int total, int *mask, int 
 	l.truth_size = 4 + 2;
 	l.truths = l.max_boxes*l.truth_size;    // 90*(4 + 1);
 	l.labels = (int*)xcalloc(batch * l.w*l.h*l.n, sizeof(int));
-	for (i = 0; i < batch * l.w*l.h*l.n; ++i) l.labels[i] = -1;
+
+	for (i = 0; i < batch * l.w*l.h*l.n; ++i)
+	{
+		l.labels[i] = -1;
+	}
 	l.class_ids = (int*)xcalloc(batch * l.w*l.h*l.n, sizeof(int));
-	for (i = 0; i < batch * l.w*l.h*l.n; ++i) l.class_ids[i] = -1;
+
+	for (i = 0; i < batch * l.w*l.h*l.n; ++i)
+	{
+		l.class_ids[i] = -1;
+	}
 
 	l.delta = (float*)xcalloc(batch * l.outputs, sizeof(float));
 	l.output = (float*)xcalloc(batch * l.outputs, sizeof(float));
-	for(i = 0; i < total*2; ++i){
+
+	for(i = 0; i < total*2; ++i)
+	{
 		l.biases[i] = .5;
 	}
 
@@ -171,11 +197,14 @@ static inline float clip_value(float val, const float max_val)
 	return val;
 }
 
-ious delta_yolo_box(box truth, float *x, float *biases, int n, int index, int i, int j, int lw, int lh, int w, int h, float *delta, float scale, int stride, float iou_normalizer, IOU_LOSS iou_loss, int accumulate, float max_delta, int *rewritten_bbox, int new_coords)
+inline ious delta_yolo_box(box truth, float *x, float *biases, int n, int index, int i, int j, int lw, int lh, int w, int h, float *delta, float scale, int stride, float iou_normalizer, IOU_LOSS iou_loss, int accumulate, float max_delta, int *rewritten_bbox, int new_coords)
 {
 	TAT(TATPARMS);
 
-	if (delta[index + 0 * stride] || delta[index + 1 * stride] || delta[index + 2 * stride] || delta[index + 3 * stride])
+	if (delta[index + 0 * stride] ||
+		delta[index + 1 * stride] ||
+		delta[index + 2 * stride] ||
+		delta[index + 3 * stride])
 	{
 		(*rewritten_bbox)++;
 	}
@@ -189,9 +218,18 @@ ious delta_yolo_box(box truth, float *x, float *biases, int n, int index, int i,
 	all_ious.giou = box_giou(pred, truth);
 	all_ious.diou = box_diou(pred, truth);
 	all_ious.ciou = box_ciou(pred, truth);
+
 	// avoid nan in dx_box_iou
-	if (pred.w == 0) { pred.w = 1.0; }
-	if (pred.h == 0) { pred.h = 1.0; }
+	if (pred.w == 0)
+	{
+		pred.w = 1.0;
+	}
+
+	if (pred.h == 0)
+	{
+		pred.h = 1.0;
+	}
+
 	if (iou_loss == MSE)    // old loss
 	{
 		float tx = (truth.x*lw - i);
@@ -199,7 +237,8 @@ ious delta_yolo_box(box truth, float *x, float *biases, int n, int index, int i,
 		float tw = log(truth.w*w / biases[2 * n]);
 		float th = log(truth.h*h / biases[2 * n + 1]);
 
-		if (new_coords) {
+		if (new_coords)
+		{
 			//tx = (truth.x*lw - i + 0.5) / 2;
 			//ty = (truth.y*lh - j + 0.5) / 2;
 			tw = sqrt(truth.w*w / (4 * biases[2 * n]));
@@ -215,7 +254,8 @@ ious delta_yolo_box(box truth, float *x, float *biases, int n, int index, int i,
 		delta[index + 2 * stride] += scale * (tw - x[index + 2 * stride]) * iou_normalizer;
 		delta[index + 3 * stride] += scale * (th - x[index + 3 * stride]) * iou_normalizer;
 	}
-	else {
+	else
+	{
 		// https://github.com/generalized-iou/g-darknet
 		// https://arxiv.org/abs/1902.09630v2
 		// https://giou.stanford.edu/
@@ -235,7 +275,8 @@ ious delta_yolo_box(box truth, float *x, float *biases, int n, int index, int i,
 
 
 		// predict exponential, apply gradient of e^delta_t ONLY for w,h
-		if (new_coords) {
+		if (new_coords)
+		{
 			//dw *= 8 * x[index + 2 * stride];
 			//dh *= 8 * x[index + 3 * stride];
 			//dw *= 8 * x[index + 2 * stride] * biases[2 * n] / w;
@@ -246,11 +287,11 @@ ious delta_yolo_box(box truth, float *x, float *biases, int n, int index, int i,
 			//dw *= grad_w;
 			//dh *= grad_h;
 		}
-		else {
+		else
+		{
 			dw *= exp(x[index + 2 * stride]);
 			dh *= exp(x[index + 3 * stride]);
 		}
-
 
 		//dw *= exp(x[index + 2 * stride]);
 		//dh *= exp(x[index + 3 * stride]);
@@ -267,7 +308,8 @@ ious delta_yolo_box(box truth, float *x, float *biases, int n, int index, int i,
 		dw = fix_nan_inf(dw);
 		dh = fix_nan_inf(dh);
 
-		if (max_delta != FLT_MAX) {
+		if (max_delta != FLT_MAX)
+		{
 			dx = clip_value(dx, max_delta);
 			dy = clip_value(dy, max_delta);
 			dw = clip_value(dw, max_delta);
@@ -275,7 +317,8 @@ ious delta_yolo_box(box truth, float *x, float *biases, int n, int index, int i,
 		}
 
 
-		if (!accumulate) {
+		if (!accumulate)
+		{
 			delta[index + 0 * stride] = 0;
 			delta[index + 1 * stride] = 0;
 			delta[index + 2 * stride] = 0;
@@ -376,13 +419,19 @@ int compare_yolo_class(float *output, int classes, int class_index, int stride, 
 	return 0;
 }
 
-static int entry_index(layer l, int batch, int location, int entry)
+namespace
 {
-	TAT(TATPARMS);
+	inline int entry_index(const layer & l, const int batch, const int location, const int entry)
+	{
+		// similar function exists in region_layer.cpp, but the math is slightly different
 
-	int n =   location / (l.w*l.h);
-	int loc = location % (l.w*l.h);
-	return batch*l.outputs + n*l.w*l.h*(4+l.classes+1) + entry*l.w*l.h + loc;
+		TAT(TATPARMS);
+
+		const int n		= location / (l.w * l.h);
+		const int loc	= location % (l.w * l.h);
+
+		return batch * l.outputs + n * l.w * l.h * (4 + l.classes + 1) + entry * l.w * l.h + loc;
+	}
 }
 
 typedef struct train_yolo_args {
@@ -1369,17 +1418,18 @@ void forward_yolo_layer_gpu(const layer l, network_state state)
 {
 	TAT(TATPARMS);
 
-	if (l.embedding_output) {
+	if (l.embedding_output)
+	{
+		/// @todo make "le" a reference?
 		layer le = state.net.layers[l.embedding_layer_id];
 		cuda_pull_array_async(le.output_gpu, l.embedding_output, le.batch*le.outputs);
 	}
 
 	//copy_ongpu(l.batch*l.inputs, state.input, 1, l.output_gpu, 1);
 	simple_copy_ongpu(l.batch*l.inputs, state.input, l.output_gpu);
-	int b, n;
-	for (b = 0; b < l.batch; ++b)
+	for (int b = 0; b < l.batch; ++b)
 	{
-		for(n = 0; n < l.n; ++n)
+		for (int n = 0; n < l.n; ++n)
 		{
 			int bbox_index = entry_index(l, b, n*l.w*l.h, 0);
 			// y = 1./(1. + exp(-x))
@@ -1397,28 +1447,34 @@ void forward_yolo_layer_gpu(const layer l, network_state state)
 				int obj_index = entry_index(l, b, n*l.w*l.h, 4);
 				activate_array_ongpu(l.output_gpu + obj_index, (1 + l.classes)*l.w*l.h, LOGISTIC); // classes and objectness
 			}
+
 			if (l.scale_x_y != 1)
 			{
 				scal_add_ongpu(2 * l.w*l.h, l.scale_x_y, -0.5*(l.scale_x_y - 1), l.output_gpu + bbox_index, 1);      // scale x,y
 			}
 		}
 	}
-	if(!state.train || l.onlyforward)
+
+	if (!state.train || l.onlyforward)
 	{
 		//cuda_pull_array(l.output_gpu, l.output, l.batch*l.outputs);
-		if (l.mean_alpha && l.output_avg_gpu) mean_array_gpu(l.output_gpu, l.batch*l.outputs, l.mean_alpha, l.output_avg_gpu);
-		cuda_pull_array_async(l.output_gpu, l.output, l.batch*l.outputs);
+		if (l.mean_alpha && l.output_avg_gpu)
+		{
+			mean_array_gpu(l.output_gpu, l.batch*l.outputs, l.mean_alpha, l.output_avg_gpu);
+		}
+		cuda_pull_array_async(l.output_gpu, l.output, l.batch * l.outputs);
 		CHECK_CUDA(cudaPeekAtLastError());
 		return;
 	}
 
 	float *in_cpu = (float *)xcalloc(l.batch*l.inputs, sizeof(float));
 	cuda_pull_array(l.output_gpu, l.output, l.batch*l.outputs);
-	memcpy(in_cpu, l.output, l.batch*l.outputs*sizeof(float));
-	float *truth_cpu = 0;
+	memcpy(in_cpu, l.output, l.batch * l.outputs * sizeof(float));
+	float * truth_cpu = nullptr;
+
 	if (state.truth)
 	{
-		int num_truth = l.batch*l.truths;
+		int num_truth = l.batch * l.truths;
 		truth_cpu = (float *)xcalloc(num_truth, sizeof(float));
 		cuda_pull_array(state.truth, truth_cpu, num_truth);
 	}
@@ -1430,9 +1486,13 @@ void forward_yolo_layer_gpu(const layer l, network_state state)
 	cpu_state.input = in_cpu;
 	forward_yolo_layer(l, cpu_state);
 	//forward_yolo_layer(l, state);
-	cuda_push_array(l.delta_gpu, l.delta, l.batch*l.outputs);
+	cuda_push_array(l.delta_gpu, l.delta, l.batch * l.outputs);
+
 	free(in_cpu);
-	if (cpu_state.truth) free(cpu_state.truth);
+	if (cpu_state.truth)
+	{
+		free(cpu_state.truth);
+	}
 }
 
 void backward_yolo_layer_gpu(const layer l, network_state state)
