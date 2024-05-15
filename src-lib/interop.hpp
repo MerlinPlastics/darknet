@@ -23,7 +23,8 @@ struct bbox_t {
 
 struct bbox_t_container {
 	size_t size;
-	bbox_t candidates[C_SHARP_MAX_OBJECTS];
+	bbox_t* candidates_ptr;
+	//bbox_t candidates[C_SHARP_MAX_OBJECTS];
 };
 
 
@@ -72,25 +73,21 @@ private:
 private:
 	image mat_to_image_resize(cv::Mat mat) const
 	{
-		image image; 
-		if (mat.data == NULL) return image; 
+		image image;
+		if (mat.data == NULL) return image;
 
 		cv::Size network_size = cv::Size(get_net_width(), get_net_height());
 		cv::Mat det_mat;
-		//if (mat.size() != network_size)
-			cv::resize(mat, det_mat, network_size);
-		//else
-		//	det_mat = mat;  // only reference is copied
 
-		//cv::Mat img;
+		cv::resize(mat, det_mat, network_size);
+
 		if (det_mat.channels() == 4) cv::cvtColor(det_mat, det_mat, cv::COLOR_RGBA2BGR);
 		else if (det_mat.channels() == 3) cv::cvtColor(det_mat, det_mat, cv::COLOR_RGB2BGR);
 		else if (det_mat.channels() == 1) cv::cvtColor(det_mat, det_mat, cv::COLOR_GRAY2BGR);
 		else std::cerr << " Warning: img_src.channels() is not 1, 3 or 4. It is = " << det_mat.channels() << std::endl;
 
 		image = mat_to_image(det_mat);
-		/*free(det_mat);
-		delete(det_mat);*/
+
 		return image;
 	}
 

@@ -27,40 +27,49 @@ extern "C" {
 		return 1;
 	}
 
-	int DetectMatInteropDetector(InteropDetector* detector, cv::Mat* mat, float threshold, bbox_t_container& container) {
 
-		std::vector<bbox_t> detections = detector->detect(*mat, threshold);
-
-		/*bbox_t bbox;
-		bbox.confidence = -1;
-
-		detections.push_back(bbox);*/
-
-		container.size = detections.size();
-
-		for (size_t i = 0; i < detections.size() && i < C_SHARP_MAX_OBJECTS; ++i) {
-			container.candidates[i] = detections[i];			
-		}
-
-		// Free detections
-		//std::vector<bbox_t>().swap(detections);
-
-		return container.size;
-	}
-
-
-	int DetectFileInteropDetector(InteropDetector* detector, const char* filename, float threshold, bbox_t_container& container) {
+	bbox_t_container* DetectFileInteropDetector(InteropDetector* detector, const char* filename, float threshold) {
+		bbox_t_container* container = (bbox_t_container*)xmalloc(sizeof(bbox_t_container));
 
 		std::vector<bbox_t> detections = detector->detect(filename, threshold);
-		container.size = detections.size();
 
-		for (size_t i = 0; i < detections.size() && i < C_SHARP_MAX_OBJECTS; ++i) {
-			container.candidates[i] = detections[i];
+		container->size = detections.size();
+		container->candidates_ptr = (bbox_t*)xcalloc(container->size, sizeof(bbox_t));
+
+		for (size_t i = 0; i < detections.size(); ++i) {
+			//container->candidates[i] = detections[i];
+			container->candidates_ptr[i] = detections[i];
 		}
 
-		return detections.size();
+		return container;
 	}
 
+	bbox_t_container* DetectMatInteropDetector(InteropDetector* detector, cv::Mat* mat, float threshold) {
+
+		bbox_t_container* container = (bbox_t_container*)xmalloc(sizeof(bbox_t_container));
+
+		std::vector<bbox_t> detections = detector->detect(*mat, threshold);
+		container->size = detections.size();
+		container->candidates_ptr = (bbox_t*)xcalloc(container->size, sizeof(bbox_t));
+
+		for (size_t i = 0; i < detections.size(); ++i) {
+			//container->candidates[i] = detections[i];
+			container->candidates_ptr[i] = detections[i];
+		}
+
+		return container;
+	}
+
+	int DisposeContainerInteropDetector(bbox_t_container* container) {
+
+		if (container->candidates_ptr) {
+			free(container->candidates_ptr);
+		}
+
+		free(container);
+
+		return 1;
+	}
 }
 
 
@@ -120,7 +129,11 @@ int InteropDetector::get_net_channels() const {
 std::vector<bbox_t> InteropDetector::detect(std::string image_filename, float thresh)
 {
 	image img = load_image_cv(const_cast<char*>(image_filename.c_str()), 3);
-	return detect(img, thresh);
+	auto results = detect(img, thresh);
+
+	free_image(img);
+
+	return results;
 }
 
 
@@ -132,10 +145,11 @@ std::vector<bbox_t> InteropDetector::detect(cv::Mat mat, float thresh)
 	auto image_ptr = mat_to_image_resize(mat);
 
 	// Mat has its original size
-	//auto results = detect_resized(image_ptr, mat.cols, mat.rows, thresh);
-	std::vector<bbox_t> results;
+	auto results = detect_resized(image_ptr, mat.cols, mat.rows, thresh);
+	//std::vector<bbox_t> results;
 
-	//free(&image_ptr);
+	free_image(image_ptr);
+
 	return results;
 }
 
