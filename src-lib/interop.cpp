@@ -1,13 +1,15 @@
 #include "interop.hpp"
 #include "network.hpp"
 
-
+/// <summary>
+/// High level InteropDetector object for quick and easy inference
+/// </summary>
 extern "C" {
 	InteropDetector* CreateInteropDetector(const char* configurationFilename, const char* weightsFilename, int gpu) {
 		return new InteropDetector(configurationFilename, weightsFilename, gpu);
 	}
 
-	int GetDimensionsInteropDetector(InteropDetector* detector, int &width, int &height, int &channels) {
+	int GetDimensionsInteropDetector(InteropDetector* detector, int& width, int& height, int& channels) {
 		if (detector == NULL)
 			return 0;
 
@@ -19,46 +21,48 @@ extern "C" {
 	}
 
 	int DisposeInteropDetector(InteropDetector* detector) {
-		delete(detector);
+		if (detector)
+			delete(detector);
+
 		return 1;
-	}
-
-	int DetectorDetectMat(InteropDetector* detector, cv::Mat* mat, bbox_t_container& container) {
-
-		std::vector<bbox_t> detections = detector->detect(*mat);
-		container.size = detections.size();
-
-		for (size_t i = 0; i < detections.size() && i < C_SHARP_MAX_OBJECTS; ++i)
-			container.candidates[i] = detections[i];
-
-		return detections.size();
 	}
 
 	int DetectMatInteropDetector(InteropDetector* detector, cv::Mat* mat, float threshold, bbox_t_container& container) {
 
 		std::vector<bbox_t> detections = detector->detect(*mat, threshold);
+
+		/*bbox_t bbox;
+		bbox.confidence = -1;
+
+		detections.push_back(bbox);*/
+
 		container.size = detections.size();
 
-		for (size_t i = 0; i < detections.size() && i < C_SHARP_MAX_OBJECTS; ++i){
-			container.candidates[i] = detections[i];
+		for (size_t i = 0; i < detections.size() && i < C_SHARP_MAX_OBJECTS; ++i) {
+			container.candidates[i] = detections[i];			
 		}
 
-		return detections.size();
+		// Free detections
+		//std::vector<bbox_t>().swap(detections);
+
+		return container.size;
 	}
+
 
 	int DetectFileInteropDetector(InteropDetector* detector, const char* filename, float threshold, bbox_t_container& container) {
 
 		std::vector<bbox_t> detections = detector->detect(filename, threshold);
 		container.size = detections.size();
 
-		for (size_t i = 0; i < detections.size() && i < C_SHARP_MAX_OBJECTS; ++i)
+		for (size_t i = 0; i < detections.size() && i < C_SHARP_MAX_OBJECTS; ++i) {
 			container.candidates[i] = detections[i];
+		}
 
 		return detections.size();
 	}
 
-
 }
+
 
 
 InteropDetector::InteropDetector(std::string cfg_filename, std::string weight_filename, int gpu_id = 0)
@@ -125,20 +129,23 @@ std::vector<bbox_t> InteropDetector::detect(cv::Mat mat, float thresh)
 	if (mat.data == NULL)
 		throw std::runtime_error("Image is empty");
 
-	cv::Mat img;
-	if (mat.channels() == 4) cv::cvtColor(mat, img, cv::COLOR_RGBA2BGR);
-	else if (mat.channels() == 3) cv::cvtColor(mat, img, cv::COLOR_RGB2BGR);
-	else if (mat.channels() == 1) cv::cvtColor(mat, img, cv::COLOR_GRAY2BGR);
+	auto image_ptr = mat_to_image_resize(mat);
 
-	auto image_ptr = mat_to_image_resize(img);
 	// Mat has its original size
-	return detect_resized(image_ptr, mat.cols, mat.rows, thresh);
+	//auto results = detect_resized(image_ptr, mat.cols, mat.rows, thresh);
+	std::vector<bbox_t> results;
+
+	//free(&image_ptr);
+	return results;
 }
+
+
 
 std::vector<bbox_t> InteropDetector::detect(image img, float thresh)
 {
 	detector_gpu_t& detector_gpu = *static_cast<detector_gpu_t*>(detector_gpu_ptr.get());
 	network& net = detector_gpu.net;
+
 #ifdef GPU
 	int old_gpu_index;
 	cudaGetDevice(&old_gpu_index);

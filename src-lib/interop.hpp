@@ -22,9 +22,10 @@ struct bbox_t {
 };
 
 struct bbox_t_container {
-	bbox_t candidates[C_SHARP_MAX_OBJECTS];
 	size_t size;
+	bbox_t candidates[C_SHARP_MAX_OBJECTS];
 };
+
 
 struct detector_gpu_t {
 	network net;
@@ -45,7 +46,6 @@ public:
 	std::vector<bbox_t> detect(std::string image_filename, float thresh = 0.2);
 	std::vector<bbox_t> detect(cv::Mat mat, float thresh = 0.2);
 	std::vector<bbox_t> detect(image image, float thresh = 0.2);
-	//std::vector<bbox_t> detect(float* data, int size, int width, int height, int channels, float thresh = 0.2);
 
 	int get_net_width() const;
 	int get_net_height() const;
@@ -55,8 +55,6 @@ private:
 
 	float nms = .4;
 	bool wait_stream;
-
-public:
 
 	std::vector<bbox_t> detect_resized(image img, int init_w, int init_h, float thresh = 0.2)
 	{
@@ -74,23 +72,25 @@ public:
 private:
 	image mat_to_image_resize(cv::Mat mat) const
 	{
-		image image = make_image(1,1,1);
+		image image; 
 		if (mat.data == NULL) return image; 
 
 		cv::Size network_size = cv::Size(get_net_width(), get_net_height());
 		cv::Mat det_mat;
-		if (mat.size() != network_size)
+		//if (mat.size() != network_size)
 			cv::resize(mat, det_mat, network_size);
-		else
-			det_mat = mat;  // only reference is copied
+		//else
+		//	det_mat = mat;  // only reference is copied
 
-		cv::Mat img;
-		if (det_mat.channels() == 4) cv::cvtColor(det_mat, img, cv::COLOR_RGBA2BGR);
-		else if (det_mat.channels() == 3) cv::cvtColor(det_mat, img, cv::COLOR_RGB2BGR);
-		else if (det_mat.channels() == 1) cv::cvtColor(det_mat, img, cv::COLOR_GRAY2BGR);
+		//cv::Mat img;
+		if (det_mat.channels() == 4) cv::cvtColor(det_mat, det_mat, cv::COLOR_RGBA2BGR);
+		else if (det_mat.channels() == 3) cv::cvtColor(det_mat, det_mat, cv::COLOR_RGB2BGR);
+		else if (det_mat.channels() == 1) cv::cvtColor(det_mat, det_mat, cv::COLOR_GRAY2BGR);
 		else std::cerr << " Warning: img_src.channels() is not 1, 3 or 4. It is = " << det_mat.channels() << std::endl;
 
-		image = mat_to_image(img);
+		image = mat_to_image(det_mat);
+		/*free(det_mat);
+		delete(det_mat);*/
 		return image;
 	}
 
