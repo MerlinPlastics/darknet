@@ -16,3 +16,7 @@ __pycache__/
 
 # Visual Studio C++ generated binary of .rc file
 *.aps
+
+# C-sharp build results
+DarknetDotnet/[Bb]in/
+DarknetDotnet/[Oo]bj/

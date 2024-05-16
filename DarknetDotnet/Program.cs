@@ -36,8 +36,15 @@ namespace DarknetDotnet
 				while (true)
 				{
 
-					InteropMethods.BboxContainer container2 = new InteropMethods.BboxContainer();
-					int resultsB = InteropMethods.DetectorFromMat(detector, mat.CvPtr, 0.0f, ref container2);
+					//InteropMethods.BboxContainer container2 = new InteropMethods.BboxContainer();
+					//int resultsB = InteropMethods.DetectorFromMat(detector, mat.CvPtr, 0.0f, ref container2);
+
+					//var resultPtr = InteropMethods.DetectorFromMat(detector, mat.CvPtr, 0.2f);
+					var resultPtr = InteropMethods.DetectFromFile(detector, imageFile, 0.0f);
+
+					var result = Marshal.PtrToStructure<BboxContainer>(resultPtr);
+					MarshalUnmananagedArrayToStruct<bbox_t>(result.candidatesPtr, result.size, out bbox_t[] candidates);
+					InteropMethods.DisposeDetections(resultPtr);
 
 					if (count++ % 1000 == 0)
 					{
@@ -55,18 +62,21 @@ namespace DarknetDotnet
 			}
 		}
 
-		//public static void MarshalUnmananagedArrayToStruct<T>(IntPtr unmanagedArray, int length, out T[] mangagedArray)
-		//{
-		//	var size = Marshal.SizeOf(typeof(T));
-		//	mangagedArray = new T[length];
+		public static void MarshalUnmananagedArrayToStruct<T>(IntPtr unmanagedArray, long length, out T[] mangagedArray)
+		{
+			var size = Marshal.SizeOf(typeof(T));
+			mangagedArray = new T[length];
 
-		//	for (int i = 0; i < length; i++)
-		//	{
-		//		IntPtr ins = new IntPtr(unmanagedArray.ToInt64() + i * size);
-		//		mangagedArray[i] = Marshal.PtrToStructure<T>(ins);
-		//	}
+			for (int i = 0; i < length; i++)
+			{
+				IntPtr ins = new IntPtr(unmanagedArray.ToInt64() + i * size);
+				if (ins != IntPtr.Zero)
+				{
+					mangagedArray[i] = Marshal.PtrToStructure<T>(ins);
+				}
+			}
 
-		//}
+		}
 
 
 	}
