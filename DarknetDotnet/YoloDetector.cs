@@ -40,6 +40,11 @@ namespace DarknetDotnet
 			return ConvertUnmanagedBBoxContainer(resultPtr);
 		}
 
+		public TimeSpan SpeedTest(int trials = 1000)
+		{
+			var ms = InteropMethods.SpeedTest(detector, trials);
+			return TimeSpan.FromMilliseconds(ms);
+		}
 
 		private IEnumerable<YoloItem> ConvertUnmanagedBBoxContainer(nint resultPtr)
 		{
@@ -124,5 +129,65 @@ namespace DarknetDotnet
 
 		}
 
+
+
+		public static YoloDetector CreateDetector(string? neuralNetworkPath, int gpu)
+		{
+			if (!Path.IsPathRooted(neuralNetworkPath))
+			{
+				string currentPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!;
+
+				if (!string.IsNullOrEmpty(neuralNetworkPath))
+					neuralNetworkPath = Path.GetFullPath(Path.Combine(currentPath, neuralNetworkPath));
+				else
+					neuralNetworkPath = currentPath;
+			}
+
+			string yoloPath = $"{neuralNetworkPath}";
+
+			if (!Directory.Exists(yoloPath))
+			{
+				throw new InvalidOperationException($"Cannot find neural network path at {yoloPath} ");
+			}
+
+			// Find all files in target directory
+			var files = Directory.GetFiles(yoloPath, "*.*", SearchOption.TopDirectoryOnly);
+
+			var configurationFile = files.Where(o => o.EndsWith(".cfg")).FirstOrDefault();
+			var weightsFile = files.Where(o => o.EndsWith(".weights")).FirstOrDefault();
+			var namesFile = files.Where(o => o.EndsWith(".names")).FirstOrDefault();
+
+			if (configurationFile == null)
+			{
+				throw new ArgumentNullException($"No .cfg file found at {yoloPath}");
+			}
+
+			if (weightsFile == null)
+			{
+				throw new ArgumentNullException($"No .weights file found at {yoloPath}");
+			}
+
+			if (namesFile == null)
+			{
+				throw new ArgumentNullException($"No .names file found at {yoloPath}");
+			}
+
+			try
+			{
+				int i = 0;
+				var classes = File.ReadAllLines(namesFile)
+					.Select(q => q.ToLower().Trim())
+					.Where(q => !string
+						.IsNullOrEmpty(q))
+					.ToDictionary(value => i++, value => value);
+
+
+				return new YoloDetector(configurationFile, weightsFile, gpu, classes);
+			}
+			catch (Exception)
+			{
+				throw;
+			}
+		}
 	}
 }

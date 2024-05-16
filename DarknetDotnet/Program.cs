@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -17,7 +18,7 @@ namespace DarknetDotnet
 			string weights = "LegoGears_best.weights";
 			int gpu = 0;
 
-			string imageFile = @"C:\dev\darknet-merlin\DarknetDotnet\bin\Debug\net8.0\image.jpg";
+			string imageFile = @"image.jpg";
 
 			Program p = new Program();
 			p.TestDetector(config, weights, gpu, imageFile);
@@ -26,41 +27,66 @@ namespace DarknetDotnet
 
 		internal void TestDetector(string config, string weights, int gpu, string imageFile)
 		{
-			IntPtr detector = IntPtr.Zero;
-			try
+			var mat = Cv2.ImRead(imageFile, ImreadModes.Color);
+			while (true)
 			{
-				detector = InteropMethods.CreateDetector(config, weights, gpu);
-				var mat = Cv2.ImRead(imageFile, ImreadModes.Color);
-
-				int count = 0;
-				while (true)
+				using (var detector = YoloDetector.CreateDetector(".", 0))
 				{
+					int trials = 1000;
+					Stopwatch sw = Stopwatch.StartNew();
+					for (int i = 0; i < trials; i++)
+						_ = detector.Detect(mat, 0.2f);
 
-					//InteropMethods.BboxContainer container2 = new InteropMethods.BboxContainer();
-					//int resultsB = InteropMethods.DetectorFromMat(detector, mat.CvPtr, 0.0f, ref container2);
+					sw.Stop();
+					var time = sw.Elapsed;
+					//Console.WriteLine($"Found {results.Count()} items");
 
-					//var resultPtr = InteropMethods.DetectorFromMat(detector, mat.CvPtr, 0.2f);
-					var resultPtr = InteropMethods.DetectFromFile(detector, imageFile, 0.0f);
 
-					var result = Marshal.PtrToStructure<BboxContainer>(resultPtr);
-					MarshalUnmananagedArrayToStruct<bbox_t>(result.candidatesPtr, result.size, out bbox_t[] candidates);
-					InteropMethods.DisposeDetections(resultPtr);
-
-					if (count++ % 1000 == 0)
-					{
-						Console.Write(".");
-						GC.Collect(2);
-
-						//InteropMethods.DisposeDetector(detector);
-						//detector = InteropMethods.CreateDetector(config, weights, gpu);
-					}
+					//var time = detector.SpeedTest(trials);
+					Console.WriteLine($"{time.TotalMilliseconds:0.00} ms for {trials} trials, or {trials * 1000.0 / time.TotalMilliseconds:0.0} Hz");
+					Console.ReadLine();
 				}
-			}
-			catch (Exception ex)
-			{
-				InteropMethods.DisposeDetector(detector);
+
 			}
 		}
+
+		//internal void TestDetector(string config, string weights, int gpu, string imageFile)
+		//{
+		//	IntPtr detector = IntPtr.Zero;
+		//	try
+		//	{
+		//		detector = InteropMethods.CreateDetector(config, weights, gpu);
+		//		var mat = Cv2.ImRead(imageFile, ImreadModes.Color);
+
+		//		int count = 0;
+		//		while (true)
+		//		{
+
+		//			//InteropMethods.BboxContainer container2 = new InteropMethods.BboxContainer();
+		//			//int resultsB = InteropMethods.DetectorFromMat(detector, mat.CvPtr, 0.0f, ref container2);
+
+		//			//var resultPtr = InteropMethods.DetectorFromMat(detector, mat.CvPtr, 0.2f);
+		//			var resultPtr = InteropMethods.DetectFromFile(detector, imageFile, 0.0f);
+
+		//			var result = Marshal.PtrToStructure<BboxContainer>(resultPtr);
+		//			MarshalUnmananagedArrayToStruct<bbox_t>(result.candidatesPtr, result.size, out bbox_t[] candidates);
+		//			InteropMethods.DisposeDetections(resultPtr);
+
+		//			if (count++ % 1000 == 0)
+		//			{
+		//				Console.Write(".");
+		//				GC.Collect(2);
+
+		//				//InteropMethods.DisposeDetector(detector);
+		//				//detector = InteropMethods.CreateDetector(config, weights, gpu);
+		//			}
+		//		}
+		//	}
+		//	catch (Exception ex)
+		//	{
+		//		InteropMethods.DisposeDetector(detector);
+		//	}
+		//}
 
 		public static void MarshalUnmananagedArrayToStruct<T>(IntPtr unmanagedArray, long length, out T[] mangagedArray)
 		{

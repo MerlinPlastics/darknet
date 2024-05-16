@@ -48,6 +48,8 @@ public:
 	std::vector<bbox_t> detect(cv::Mat mat, float thresh = 0.2);
 	std::vector<bbox_t> detect(image image, float thresh = 0.2);
 
+	double speed(int trials);
+
 	int get_net_width() const;
 	int get_net_height() const;
 	int get_net_channels() const;
@@ -70,7 +72,6 @@ private:
 		return detection_boxes;
 	}
 
-private:
 	image mat_to_image_resize(cv::Mat mat) const
 	{
 		image image;
@@ -90,8 +91,6 @@ private:
 
 		return image;
 	}
-
-private:
 
 	void check_cuda(cudaError_t status) {
 		if (status != cudaSuccess) {
@@ -119,6 +118,12 @@ private:
 #endif  // GPU
 	}
 
+
+	double get_time_point() {
+		std::chrono::steady_clock::time_point current_time = std::chrono::steady_clock::now();
+
+		return std::chrono::duration_cast<std::chrono::microseconds>(current_time.time_since_epoch()).count();
+	}
 };
 
 

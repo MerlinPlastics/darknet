@@ -29,13 +29,20 @@
 	<ItemGroup>
 	  <Folder Include="x64\" />
 	</ItemGroup>
+ 
 
-
-	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+	<!--<Target Name="PostBuild" AfterTargets="PostBuildEvent">
 		<ItemGroup>
-			<DarknetFiles Include="..\build\src-lib\$(Configuration)\*.*" 
-			Exclude="..\build\src-lib\$(Configuration)\yolo_v2_class.*"
-			/>
+			<DarknetFiles Include="..\build\src-lib\$(Configuration)\*.*" Exclude="..\build\src-lib\$(Configuration)\yolo_v2_class.*" />
+		</ItemGroup>
+
+		<Copy SourceFiles="@(DarknetFiles)" DestinationFolder="$(TargetDir)\x64" SkipUnchangedFiles="true" CopiedFiles="files" />
+	</Target>-->
+
+
+	<Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+		<ItemGroup>
+			<DarknetFiles Include="..\build\src-lib\$(Configuration)\*.*" Exclude="..\build\src-lib\$(Configuration)\yolo_v2_class.*" />
 		</ItemGroup>
 
 		<Copy SourceFiles="@(DarknetFiles)" DestinationFolder="$(TargetDir)\x64" SkipUnchangedFiles="true" CopiedFiles="files" />

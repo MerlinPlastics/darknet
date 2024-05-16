@@ -20,6 +20,12 @@ extern "C" {
 		return 1;
 	}
 
+	double SpeedInteropDetector(InteropDetector* detector, int trials) {
+		double time = detector->speed(trials);
+
+		return time;
+	}
+
 	int DisposeInteropDetector(InteropDetector* detector) {
 		if (detector)
 			delete(detector);
@@ -221,6 +227,29 @@ std::vector<bbox_t> InteropDetector::detect(image img, float thresh)
 #endif
 
 	return bbox_vec;
+}
+
+double InteropDetector::speed(int trials)
+{
+
+	if (trials <= 0) trials = 1000;
+
+	detector_gpu_t& detector_gpu = *static_cast<detector_gpu_t*>(detector_gpu_ptr.get());
+	network& net = detector_gpu.net;
+
+	set_batch_network(&net, 1);
+	int i;
+	double start = this->get_time_point();		// Time in us
+	image im = make_image(net.w, net.h, net.c);
+
+	for (i = 0; i < trials; ++i) {
+		network_predict(net, im.data);
+	}
+
+	double end = this->get_time_point();		// Time in us
+	double took_time = std::chrono::duration<double>(end - start).count();
+
+	return took_time / 1000.0;	// scale to ms from us
 }
 
 InteropDetector::~InteropDetector()
