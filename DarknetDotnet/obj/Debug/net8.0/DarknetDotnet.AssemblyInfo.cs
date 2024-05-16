@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DarknetDotnet")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0f2d3ab3e3e2696b67c9e7a87e643d6af1318310")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c79c200439ed29a6c9df7eadaa37623921633ef4")]
 [assembly: System.Reflection.AssemblyProductAttribute("DarknetDotnet")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DarknetDotnet")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
