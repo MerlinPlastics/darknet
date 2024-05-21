@@ -21,12 +21,16 @@ struct bbox_t {
 	unsigned int class_id;         // class of object - from range [0, classes-1]
 };
 
-struct bbox_t_container {
+struct bbox_t_container_ptr {
 	size_t size;
 	bbox_t* candidates_ptr;
 	//bbox_t candidates[C_SHARP_MAX_OBJECTS];
 };
 
+struct bbox_t_container {
+	size_t size;
+	bbox_t candidates[C_SHARP_MAX_OBJECTS];
+};
 
 struct detector_gpu_t {
 	network net;

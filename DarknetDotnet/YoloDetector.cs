@@ -1,11 +1,13 @@
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using static DarknetDotnet.InteropMethods;
+using Size = System.Drawing.Size;
 
 namespace DarknetDotnet
 {
@@ -27,7 +29,7 @@ namespace DarknetDotnet
 			if (mat == null || mat.CvPtr == IntPtr.Zero)
 				return Enumerable.Empty<YoloItem>();
 
-			var resultPtr = InteropMethods.DetectFromMat(detector, mat.CvPtr, threshold);
+			var resultPtr = InteropMethods.DetectFromMatPtr(detector, mat.CvPtr, threshold);
 			return ConvertUnmanagedBBoxContainer(resultPtr);
 		}
 
@@ -36,7 +38,7 @@ namespace DarknetDotnet
 			if (!File.Exists(fileName))
 				return Enumerable.Empty<YoloItem>();
 
-			var resultPtr = InteropMethods.DetectFromFile(detector, fileName, threshold);
+			var resultPtr = InteropMethods.DetectFromFilePtr(detector, fileName, threshold);
 			return ConvertUnmanagedBBoxContainer(resultPtr);
 		}
 
@@ -44,6 +46,16 @@ namespace DarknetDotnet
 		{
 			var ms = InteropMethods.SpeedTest(detector, trials);
 			return TimeSpan.FromMilliseconds(ms);
+		}
+
+		public (Size, int) GetNetworkDimensions()
+		{
+			int width = 0;
+			int height = 0;
+			int channels = 0;
+			_ = InteropMethods.DetectorSizes(detector, ref width, ref height, ref channels);
+
+			return (new Size(width, height), channels);
 		}
 
 		private IEnumerable<YoloItem> ConvertUnmanagedBBoxContainer(nint resultPtr)
@@ -189,5 +201,54 @@ namespace DarknetDotnet
 				throw;
 			}
 		}
+
+
+
+		//public IEnumerable<YoloItem> DetectRef(Mat mat, float threshold = 0.2f)
+		//{
+		//	if (mat == null || mat.CvPtr == IntPtr.Zero)
+		//		return Enumerable.Empty<YoloItem>();
+
+
+		//	BboxContainerRef container = default(BboxContainerRef);
+		//	var count = InteropMethods.DetectFromMatRef(detector, mat.CvPtr, threshold, ref container);
+
+		//	return Convert(container);
+
+		//}
+
+		//public IEnumerable<YoloItem> DetectRef(string fileName, float threshold = 0.2f)
+		//{
+		//	if (!File.Exists(fileName))
+		//		return Enumerable.Empty<YoloItem>();
+
+		//	var resultPtr = InteropMethods.DetectFromFilePtr(detector, fileName, threshold);
+		//	return ConvertUnmanagedBBoxContainer(resultPtr);
+		//}
+
+
+		//private List<YoloItem> Convert(BboxContainerRef container, float? confidence = null)
+		//{
+		//	var items = new List<YoloItem>();
+		//	foreach (var box in container.candidates.Where(o => o.h > 0 && o.w > 0))
+		//	{
+		//		var yoloItem = new YoloItem
+		//		{
+		//			X = (int)box.x,
+		//			Y = (int)box.y,
+		//			Height = (int)box.h,
+		//			Width = (int)box.w,
+		//			Confidence = box.confidence,
+		//			ObjectTypeId = (int)box.obj_id,
+		//		};
+
+		//		if (this.classNames.TryGetValue((int)box.obj_id, out string? typeName))
+		//			yoloItem.Type = typeName;
+
+		//		items.Add(yoloItem);
+		//	}
+
+		//	return items;
+		//}
 	}
 }

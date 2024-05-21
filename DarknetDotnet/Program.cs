@@ -28,26 +28,62 @@ namespace DarknetDotnet
 		internal void TestDetector(string config, string weights, int gpu, string imageFile)
 		{
 			var mat = Cv2.ImRead(imageFile, ImreadModes.Color);
-			while (true)
+			//while (true)
+			//{
+			using (var detector = YoloDetector.CreateDetector(".", 0))
 			{
-				using (var detector = YoloDetector.CreateDetector(".", 0))
+				int trials = 1000;
+				Stopwatch sw = Stopwatch.StartNew();
+
 				{
-					int trials = 1000;
-					Stopwatch sw = Stopwatch.StartNew();
+					sw.Restart();
+					_ = detector.SpeedTest(trials);
+					sw.Stop();
+
+					var time = sw.Elapsed;
+
+					Console.WriteLine("SpeedTest");
+					Console.WriteLine($"{time.TotalMilliseconds:0.00} ms for {trials} trials, or {trials * 1000.0 / time.TotalMilliseconds:0.0} Hz");
+				}
+
+				{
+					sw.Restart();
 					for (int i = 0; i < trials; i++)
 						_ = detector.Detect(mat, 0.2f);
 
 					sw.Stop();
 					var time = sw.Elapsed;
-					//Console.WriteLine($"Found {results.Count()} items");
 
-
-					//var time = detector.SpeedTest(trials);
+					Console.WriteLine("YoloDetector");
 					Console.WriteLine($"{time.TotalMilliseconds:0.00} ms for {trials} trials, or {trials * 1000.0 / time.TotalMilliseconds:0.0} Hz");
-					Console.ReadLine();
 				}
 
+				//{
+				//	sw.Restart();
+				//	for (int i = 0; i < trials; i++)
+				//		_ = detector.DetectPtr(mat, 0.2f);
+
+				//	sw.Stop();
+				//	var time = sw.Elapsed;
+
+				//	Console.WriteLine("\nPtr");
+				//	Console.WriteLine($"{time.TotalMilliseconds:0.00} ms for {trials} trials, or {trials * 1000.0 / time.TotalMilliseconds:0.0} Hz");
+				//}
+
+
+				{
+					sw = Stopwatch.StartNew();
+					for (int i = 0; i < trials; i++)
+						_ = detector.DetectRef(mat, 0.2f);
+
+					sw.Stop();
+					var time = sw.Elapsed;
+
+					Console.WriteLine("\nRef");
+					Console.WriteLine($"{time.TotalMilliseconds:0.00} ms for {trials} trials, or {trials * 1000.0 / time.TotalMilliseconds:0.0} Hz");
+				}
 			}
+			//}
 		}
 
 		//internal void TestDetector(string config, string weights, int gpu, string imageFile)

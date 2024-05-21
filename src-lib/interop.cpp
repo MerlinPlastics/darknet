@@ -34,8 +34,8 @@ extern "C" {
 	}
 
 
-	bbox_t_container* DetectFileInteropDetector(InteropDetector* detector, const char* filename, float threshold) {
-		bbox_t_container* container = (bbox_t_container*)xmalloc(sizeof(bbox_t_container));
+	bbox_t_container_ptr* DetectFileInteropDetectorPtr(InteropDetector* detector, const char* filename, float threshold) {
+		bbox_t_container_ptr* container = (bbox_t_container_ptr*)xmalloc(sizeof(bbox_t_container_ptr));
 
 		std::vector<bbox_t> detections = detector->detect(filename, threshold);
 
@@ -43,30 +43,53 @@ extern "C" {
 		container->candidates_ptr = (bbox_t*)xcalloc(container->size, sizeof(bbox_t));
 
 		for (size_t i = 0; i < detections.size(); ++i) {
-			//container->candidates[i] = detections[i];
 			container->candidates_ptr[i] = detections[i];
 		}
 
 		return container;
 	}
 
-	bbox_t_container* DetectMatInteropDetector(InteropDetector* detector, cv::Mat* mat, float threshold) {
+	bbox_t_container_ptr* DetectMatInteropDetectorPtr(InteropDetector* detector, cv::Mat* mat, float threshold) {
 
-		bbox_t_container* container = (bbox_t_container*)xmalloc(sizeof(bbox_t_container));
+		bbox_t_container_ptr* container = (bbox_t_container_ptr*)xmalloc(sizeof(bbox_t_container_ptr));
 
 		std::vector<bbox_t> detections = detector->detect(*mat, threshold);
 		container->size = detections.size();
 		container->candidates_ptr = (bbox_t*)xcalloc(container->size, sizeof(bbox_t));
 
 		for (size_t i = 0; i < detections.size(); ++i) {
-			//container->candidates[i] = detections[i];
 			container->candidates_ptr[i] = detections[i];
 		}
 
 		return container;
 	}
 
-	int DisposeContainerInteropDetector(bbox_t_container* container) {
+
+	int DetectFileInteropDetectorRef(InteropDetector* detector, const char* filename, float threshold, bbox_t_container& container) {
+
+		std::vector<bbox_t> detections = detector->detect(filename, threshold);
+
+		for (size_t i = 0; i < detections.size(); ++i) {
+			container.candidates[i] = detections[i];
+		}
+
+		return detections.size();
+	}
+
+	int DetectMatInteropDetectorRef(InteropDetector* detector, cv::Mat* mat, float threshold, bbox_t_container& container) {
+
+		std::vector<bbox_t> detections = detector->detect(*mat, threshold);
+
+		for (size_t i = 0; i < detections.size(); ++i) {
+			container.candidates[i] = detections[i];
+		}
+
+		return detections.size();
+	}
+
+
+
+	int DisposeContainerInteropDetector(bbox_t_container_ptr* container) {
 
 		if (container->candidates_ptr) {
 			free(container->candidates_ptr);
