@@ -98,7 +98,7 @@ void speed(char *cfgfile, int tics)
 	}
 
 	double end = get_time_point();		// Time in us
-	double took_time = std::chrono::duration<double>(end - start).count();
+	double took_time = std::chrono::duration<double>(end - start).count() / 1000000;
 
 	printf("\n%d evals, %f Seconds\n", tics, took_time);
 	printf("Speed: %f sec/eval\n", took_time /tics);
