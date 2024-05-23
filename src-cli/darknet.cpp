@@ -90,15 +90,19 @@ void speed(char *cfgfile, int tics)
 	network net = parse_network_cfg(cfgfile);
 	set_batch_network(&net, 1);
 	int i;
-	time_t start = time(0);
+	double start = get_time_point();		// Time in us
 	image im = make_image(net.w, net.h, net.c);
-	for(i = 0; i < tics; ++i){
+
+	for (i = 0; i < tics; ++i) {
 		network_predict(net, im.data);
 	}
-	double t = difftime(time(0), start);
-	printf("\n%d evals, %f Seconds\n", tics, t);
-	printf("Speed: %f sec/eval\n", t/tics);
-	printf("Speed: %f Hz\n", tics/t);
+
+	double end = get_time_point();		// Time in us
+	double took_time = std::chrono::duration<double>(end - start).count();
+
+	printf("\n%d evals, %f Seconds\n", tics, took_time);
+	printf("Speed: %f sec/eval\n", took_time /tics);
+	printf("Speed: %f Hz\n", tics/ took_time);
 }
 
 void operations(char *cfgfile)
