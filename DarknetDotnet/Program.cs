@@ -14,115 +14,100 @@ namespace DarknetDotnet
 	{
 		public static void Main(string[] args)
 		{
-			string config = "LegoGears.cfg";
-			string weights = "LegoGears_best.weights";
+			//string config = "LegoGears.cfg";
+			//string weights = "LegoGears_best.weights";
+			//string names = "LegoGears.names";
+
+			string config = "calset.cfg";
+			string weights = "calset_final.weights";
+			string names = "calset.names";
+
 			int gpu = 0;
 
 			string imageFile = @"image.jpg";
 
 			Program p = new Program();
-			p.TestDetector(config, weights, gpu, imageFile);
+
+			int trials = Int32.Parse(args[0]);
+			int concurrent = Int32.Parse(args[1]);
+			p.TestDetector(config, weights, names, gpu, imageFile, trials,concurrent);
 
 		}
 
-		internal void TestDetector(string config, string weights, int gpu, string imageFile)
+		internal void TestDetector(string config, string weights, string names, int gpu, string imageFile, int trials, int concurrent)
 		{
 			var mat = Cv2.ImRead(imageFile, ImreadModes.Color);
-			//while (true)
-			//{
-			using (var detector = YoloDetector.CreateDetector(".", 0))
+
+			var sem = new Semaphore(0, concurrent);
+			List<Task> tasks = new List<Task>();
+			Parallel.For(0, concurrent, i =>
 			{
-				int trials = 1000;
-				Stopwatch sw = Stopwatch.StartNew();
-
+				var t = Task.Run(() =>
 				{
-					sw.Restart();
-					_ = detector.SpeedTest(trials);
-					sw.Stop();
+					using (var detector = YoloDetector.CreateDetector(config, weights, names, 0))
+					{
+						int width, height, colors;
+						(width, height, colors) = detector.GetNetworkDimensions();
 
-					var time = sw.Elapsed;
+						mat = new Mat(height, width, MatType.CV_8UC3);
 
-					Console.WriteLine("SpeedTest");
-					Console.WriteLine($"{time.TotalMilliseconds:0.00} ms for {trials} trials, or {trials * 1000.0 / time.TotalMilliseconds:0.0} Hz");
-				}
+						Console.WriteLine($"{i}: waiting");
+						sem.WaitOne(0);
 
-				{
-					sw.Restart();
-					for (int i = 0; i < trials; i++)
-						_ = detector.Detect(mat, 0.2f);
+						//int trials = 100;
+						Stopwatch sw = Stopwatch.StartNew();
 
-					sw.Stop();
-					var time = sw.Elapsed;
+						{
+							sw.Restart();
+							_ = detector.SpeedTest(trials);
+							sw.Stop();
 
-					Console.WriteLine("YoloDetector");
-					Console.WriteLine($"{time.TotalMilliseconds:0.00} ms for {trials} trials, or {trials * 1000.0 / time.TotalMilliseconds:0.0} Hz");
-				}
+							var time = sw.Elapsed;
 
-				//{
-				//	sw.Restart();
-				//	for (int i = 0; i < trials; i++)
-				//		_ = detector.DetectPtr(mat, 0.2f);
+							Console.WriteLine("SpeedTest");
+							Console.WriteLine(
+								$"{i}: {time.TotalMilliseconds:0.00} ms for {trials} trials, or {trials * 1000.0 / time.TotalMilliseconds:0.0} Hz");
+							Console.WriteLine();
+						}
 
-				//	sw.Stop();
-				//	var time = sw.Elapsed;
+						{
+							sw.Restart();
+							for (int i = 0; i < trials; i++)
+								_ = detector.Detect(mat, 0.2f);
 
-				//	Console.WriteLine("\nPtr");
-				//	Console.WriteLine($"{time.TotalMilliseconds:0.00} ms for {trials} trials, or {trials * 1000.0 / time.TotalMilliseconds:0.0} Hz");
-				//}
+							sw.Stop();
+							var time = sw.Elapsed;
 
+							Console.WriteLine("YoloDetector with pointer");
+							Console.WriteLine(
+								$"{i}: {time.TotalMilliseconds:0.00} ms for {trials} trials, or {trials * 1000.0 / time.TotalMilliseconds:0.0} Hz");
+							Console.WriteLine();
+						}
 
-				{
-					sw = Stopwatch.StartNew();
-					for (int i = 0; i < trials; i++)
-						_ = detector.DetectRef(mat, 0.2f);
+						{
+							sw.Restart();
+							for (int i = 0; i < trials; i++)
+								_ = detector.Detect(mat, 0.2f);
 
-					sw.Stop();
-					var time = sw.Elapsed;
+							sw.Stop();
+							var time = sw.Elapsed;
 
-					Console.WriteLine("\nRef");
-					Console.WriteLine($"{time.TotalMilliseconds:0.00} ms for {trials} trials, or {trials * 1000.0 / time.TotalMilliseconds:0.0} Hz");
-				}
-			}
-			//}
+							Console.WriteLine("YoloDetector with reference array");
+							Console.WriteLine(
+								$"{i}: {time.TotalMilliseconds:0.00} ms for {trials} trials, or {trials * 1000.0 / time.TotalMilliseconds:0.0} Hz");
+							Console.WriteLine();
+						}
+
+						Console.WriteLine($"{i}: done");
+					}
+				});
+				tasks.Add(t);
+			});
+
+			sem.Release(6);
+			Task.WaitAll(tasks.ToArray());
 		}
 
-		//internal void TestDetector(string config, string weights, int gpu, string imageFile)
-		//{
-		//	IntPtr detector = IntPtr.Zero;
-		//	try
-		//	{
-		//		detector = InteropMethods.CreateDetector(config, weights, gpu);
-		//		var mat = Cv2.ImRead(imageFile, ImreadModes.Color);
-
-		//		int count = 0;
-		//		while (true)
-		//		{
-
-		//			//InteropMethods.BboxContainer container2 = new InteropMethods.BboxContainer();
-		//			//int resultsB = InteropMethods.DetectorFromMat(detector, mat.CvPtr, 0.0f, ref container2);
-
-		//			//var resultPtr = InteropMethods.DetectorFromMat(detector, mat.CvPtr, 0.2f);
-		//			var resultPtr = InteropMethods.DetectFromFile(detector, imageFile, 0.0f);
-
-		//			var result = Marshal.PtrToStructure<BboxContainer>(resultPtr);
-		//			MarshalUnmananagedArrayToStruct<bbox_t>(result.candidatesPtr, result.size, out bbox_t[] candidates);
-		//			InteropMethods.DisposeDetections(resultPtr);
-
-		//			if (count++ % 1000 == 0)
-		//			{
-		//				Console.Write(".");
-		//				GC.Collect(2);
-
-		//				//InteropMethods.DisposeDetector(detector);
-		//				//detector = InteropMethods.CreateDetector(config, weights, gpu);
-		//			}
-		//		}
-		//	}
-		//	catch (Exception ex)
-		//	{
-		//		InteropMethods.DisposeDetector(detector);
-		//	}
-		//}
 
 		public static void MarshalUnmananagedArrayToStruct<T>(IntPtr unmanagedArray, long length, out T[] mangagedArray)
 		{

@@ -48,14 +48,14 @@ namespace DarknetDotnet
 			return TimeSpan.FromMilliseconds(ms);
 		}
 
-		public (Size, int) GetNetworkDimensions()
+		public (int, int, int) GetNetworkDimensions()
 		{
 			int width = 0;
 			int height = 0;
 			int channels = 0;
 			_ = InteropMethods.DetectorSizes(detector, ref width, ref height, ref channels);
 
-			return (new Size(width, height), channels);
+			return (width, height, channels);
 		}
 
 		private IEnumerable<YoloItem> ConvertUnmanagedBBoxContainer(nint resultPtr)
@@ -141,7 +141,41 @@ namespace DarknetDotnet
 
 		}
 
+		public static YoloDetector CreateDetector(string configurationFile, string weightsFile, string namesFile,
+			int gpu)
+		{
+			if (configurationFile == null || !Path.Exists(configurationFile))
+			{
+				throw new ArgumentNullException($"No .cfg file found at {configurationFile}");
+			}
 
+			if (weightsFile == null || !Path.Exists(weightsFile))
+			{
+				throw new ArgumentNullException($"No .weights file found at {weightsFile}");
+			}
+
+			if (namesFile == null || !Path.Exists(namesFile))
+			{
+				throw new ArgumentNullException($"No .names file found at {namesFile}");
+			}
+
+			try
+			{
+				int i = 0;
+				var classes = File.ReadAllLines(namesFile)
+					.Select(q => q.ToLower().Trim())
+					.Where(q => !string
+						.IsNullOrEmpty(q))
+					.ToDictionary(value => i++, value => value);
+
+
+				return new YoloDetector(configurationFile, weightsFile, gpu, classes);
+			}
+			catch (Exception)
+			{
+				throw;
+			}
+		}
 
 		public static YoloDetector CreateDetector(string? neuralNetworkPath, int gpu)
 		{
@@ -204,51 +238,53 @@ namespace DarknetDotnet
 
 
 
-		//public IEnumerable<YoloItem> DetectRef(Mat mat, float threshold = 0.2f)
-		//{
-		//	if (mat == null || mat.CvPtr == IntPtr.Zero)
-		//		return Enumerable.Empty<YoloItem>();
+		public IEnumerable<YoloItem> DetectRef(Mat mat, float threshold = 0.2f)
+		{
+			if (mat == null || mat.CvPtr == IntPtr.Zero)
+				return Enumerable.Empty<YoloItem>();
 
 
-		//	BboxContainerRef container = default(BboxContainerRef);
-		//	var count = InteropMethods.DetectFromMatRef(detector, mat.CvPtr, threshold, ref container);
+			BboxContainerRef container = default(BboxContainerRef);
+			var count = InteropMethods.DetectFromMatRef(detector, mat.CvPtr, threshold, ref container);
 
-		//	return Convert(container);
+			return Convert(container);
 
-		//}
+		}
 
-		//public IEnumerable<YoloItem> DetectRef(string fileName, float threshold = 0.2f)
-		//{
-		//	if (!File.Exists(fileName))
-		//		return Enumerable.Empty<YoloItem>();
+		public IEnumerable<YoloItem> DetectRef(string fileName, float threshold = 0.2f)
+		{
+			if (!File.Exists(fileName))
+				return Enumerable.Empty<YoloItem>();
 
-		//	var resultPtr = InteropMethods.DetectFromFilePtr(detector, fileName, threshold);
-		//	return ConvertUnmanagedBBoxContainer(resultPtr);
-		//}
+			BboxContainerRef container = default(BboxContainerRef);
+			var resultPtr = InteropMethods.DetectFromFileRef(detector, fileName, threshold, ref container);
+
+			return Convert(container);
+		}
 
 
-		//private List<YoloItem> Convert(BboxContainerRef container, float? confidence = null)
-		//{
-		//	var items = new List<YoloItem>();
-		//	foreach (var box in container.candidates.Where(o => o.h > 0 && o.w > 0))
-		//	{
-		//		var yoloItem = new YoloItem
-		//		{
-		//			X = (int)box.x,
-		//			Y = (int)box.y,
-		//			Height = (int)box.h,
-		//			Width = (int)box.w,
-		//			Confidence = box.confidence,
-		//			ObjectTypeId = (int)box.obj_id,
-		//		};
+		private List<YoloItem> Convert(BboxContainerRef container, float? confidence = null)
+		{
+			var items = new List<YoloItem>();
+			foreach (var box in container.candidates.Where(o => o.h > 0 && o.w > 0))
+			{
+				var yoloItem = new YoloItem
+				{
+					X = (int)box.x,
+					Y = (int)box.y,
+					Height = (int)box.h,
+					Width = (int)box.w,
+					Confidence = box.confidence,
+					ObjectTypeId = (int)box.obj_id,
+				};
 
-		//		if (this.classNames.TryGetValue((int)box.obj_id, out string? typeName))
-		//			yoloItem.Type = typeName;
+				if (this.classNames.TryGetValue((int)box.obj_id, out string? typeName))
+					yoloItem.Type = typeName;
 
-		//		items.Add(yoloItem);
-		//	}
+				items.Add(yoloItem);
+			}
 
-		//	return items;
-		//}
+			return items;
+		}
 	}
 }

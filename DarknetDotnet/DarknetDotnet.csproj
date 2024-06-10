@@ -12,6 +12,15 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Update="calset.cfg">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="calset.names">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="calset_final.weights">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
 		<None Update="image.jpg">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
