@@ -8,6 +8,8 @@
 
 Darknet::CfgAndState::CfgAndState()
 {
+	TAT(TATPARMS);
+
 	reset();
 
 	return;
@@ -16,22 +18,40 @@ Darknet::CfgAndState::CfgAndState()
 
 Darknet::CfgAndState::~CfgAndState()
 {
+	TAT(TATPARMS);
+
 	return;
 }
 
 
 Darknet::CfgAndState & Darknet::CfgAndState::get()
 {
+	TAT(TATPARMS);
+
 	static CfgAndState cfg_and_state;
+
 	return cfg_and_state;
 }
 
 
 Darknet::CfgAndState & Darknet::CfgAndState::reset()
 {
+	TAT(TATPARMS);
+
+	// Seeding the old C-style rand() is peppered all over the codebase for some reason.
+	// I'm hoping we can do it once, and then not worry about it again.  Eventually we
+	// can move to the new C++11 objects and functions for dealing with random numbers.
+	std::srand(std::time(nullptr));
+	// ... also see the seeding that happens in get_rnd_engine()
+
+	// prefer using 500 over 5e+02 when outputting floats
+	std::cout << std::fixed;
+
 	must_immediately_exit	= false;
 	is_shown				= true;
 	colour_is_enabled		= true;
+	is_verbose				= false;
+
 #ifdef GPU
 	gpu_index				= 0;
 #else
@@ -55,6 +75,8 @@ Darknet::CfgAndState & Darknet::CfgAndState::reset()
 
 std::string convert_to_lowercase_alphanum(const std::string & arg)
 {
+	TAT(TATPARMS);
+
 	std::string str;
 	str.reserve(arg.length());
 	for (auto & c : arg)
@@ -71,6 +93,8 @@ std::string convert_to_lowercase_alphanum(const std::string & arg)
 
 Darknet::CfgAndState & Darknet::CfgAndState::process_arguments(int argc, char ** argp)
 {
+	TAT(TATPARMS);
+
 	argv.clear();
 	args.clear();
 
@@ -188,6 +212,12 @@ Darknet::CfgAndState & Darknet::CfgAndState::process_arguments(int argc, char **
 		}
 	}
 
+	if (args.count("verbose"		) > 0 or
+		args.count("show_details"	) > 0) // old Darknet had "-show_details", which I didn't know about when I created "--verbose"
+	{
+		is_verbose = true;
+	}
+
 	if (args.count("dontshow") > 0)
 	{
 		is_shown = false;
@@ -258,6 +288,8 @@ Darknet::CfgAndState & Darknet::CfgAndState::process_arguments(int argc, char **
 
 bool Darknet::CfgAndState::is_set(const std::string arg, const bool default_value)
 {
+	TAT(TATPARMS);
+
 	const std::string name = convert_to_lowercase_alphanum(arg);
 
 	if (args.count(name) > 0)
@@ -266,4 +298,49 @@ bool Darknet::CfgAndState::is_set(const std::string arg, const bool default_valu
 	}
 
 	return default_value;
+}
+
+
+void Darknet::CfgAndState::set_thread_name(const std::thread::id & tid, const std::string & name)
+{
+	TAT(TATPARMS);
+
+	if (name.empty() == false and thread_names.count(tid) == 0)
+	{
+		std::scoped_lock lock(thread_names_mutex);
+		thread_names[tid] = name;
+	}
+
+	return;
+}
+
+
+std::string Darknet::CfgAndState::get_thread_name()
+{
+	TAT(TATPARMS);
+
+	std::string name = "unknown thread";
+
+	const auto id = std::this_thread::get_id();
+	if (thread_names.count(id) != 0)
+	{
+		std::scoped_lock lock(thread_names_mutex);
+		name = thread_names.at(id);
+	}
+
+	return name;
+}
+
+
+void Darknet::CfgAndState::del_thread_name(const std::thread::id & tid)
+{
+	TAT(TATPARMS);
+
+	if (thread_names.count(tid) != 0)
+	{
+		std::scoped_lock lock(thread_names_mutex);
+		thread_names.erase(tid);
+	}
+
+	return;
 }

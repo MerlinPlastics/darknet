@@ -7,7 +7,8 @@
 
 box float_to_box(const float * f)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is used in several places
+	TAT_REVIEWED(TATPARMS, "2024-05-12");
 
 	box b;
 	b.x = f[0];
@@ -21,7 +22,8 @@ box float_to_box(const float * f)
 
 box float_to_box_stride(const float *f, const int stride)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is used in several places
+	TAT_REVIEWED(TATPARMS, "2024-05-12");
 
 	box b;
 	b.x = f[0];
@@ -33,9 +35,10 @@ box float_to_box_stride(const float *f, const int stride)
 }
 
 
-dbox derivative(const box & a, const box & b)
+inline dbox derivative(const box & a, const box & b)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is only used in this file
+	TAT_REVIEWED(TATPARMS, "2024-03-19 inlined");
 
 	dbox d;
 	d.dx = a.x < b.x ? 1.0 : -1.0;
@@ -48,9 +51,10 @@ dbox derivative(const box & a, const box & b)
 
 
 /// where c is the smallest box that fully encompases a and b
-boxabs box_c(const box & a, const box & b)
+inline boxabs box_c(const box & a, const box & b)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is only used in this file
+	TAT_REVIEWED(TATPARMS, "2024-05-12 inlined");
 
 	boxabs ba;
 	ba.top		= fmin(a.y - a.h / 2.0f, b.y - b.h / 2.0f);
@@ -63,9 +67,10 @@ boxabs box_c(const box & a, const box & b)
 
 
 /// representation from x, y, w, h to top, left, bottom, right
-boxabs to_tblr(const box & a)
+inline boxabs to_tblr(const box & a)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is only used in this file
+	TAT_REVIEWED(TATPARMS, "2024-05-12 inlined");
 
 	boxabs tblr;
 	tblr.top	= a.y - (a.h / 2.0f);
@@ -77,9 +82,10 @@ boxabs to_tblr(const box & a)
 }
 
 
-float overlap(const float x1, const float w1, const float x2, const float w2)
+inline float overlap(const float x1, const float w1, const float x2, const float w2)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is only used in this file
+	TAT_REVIEWED(TATPARMS, "2024-05-12 inlined");
 
 	const float l1 = x1 - w1 / 2.0f;
 	const float l2 = x2 - w2 / 2.0f;
@@ -92,25 +98,40 @@ float overlap(const float x1, const float w1, const float x2, const float w2)
 	return right - left;
 }
 
-float box_intersection(const box & a, const box & b)
+inline float box_intersection(const box & a, const box & b)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is only used in this file
+	TAT_REVIEWED(TATPARMS, "2024-05-12 inlined");
 
 	const float w = overlap(a.x, a.w, b.x, b.w);
-	const float h = overlap(a.y, a.h, b.y, b.h);
-	if (w <= 0.0f || h <= 0.0f)
+	if (w <= 0.0f)
 	{
 		return 0.0f;
 	}
 
-	const float area = w * h;
+	const float h = overlap(a.y, a.h, b.y, b.h);
+	if (h <= 0.0f)
+	{
+		return 0.0f;
+	}
 
-	return area;
+	return w * h;
 }
 
-float box_union(const box & a, const box & b)
+inline float box_union(const box & a, const box & b, const float intersection)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is only used in this file
+	TAT_REVIEWED(TATPARMS, "2024-05-12 inlined");
+
+	const float u = a.w * a.h + b.w * b.h - intersection;
+
+	return u;
+}
+
+inline float box_union(const box & a, const box & b)
+{
+	// this function is only used in this file
+	TAT_REVIEWED(TATPARMS, "2024-05-12 inlined");
 
 	const float i = box_intersection(a, b);
 	const float u = a.w * a.h + b.w * b.h - i;
@@ -120,6 +141,7 @@ float box_union(const box & a, const box & b)
 
 float box_iou_kind(const box & a, const box & b, const IOU_LOSS iou_kind)
 {
+	// this function is used in several places
 	TAT_REVIEWED(TATPARMS, "2024-03-19");
 
 	//IOU, GIOU, MSE, DIOU, CIOU
@@ -137,23 +159,25 @@ float box_iou_kind(const box & a, const box & b, const IOU_LOSS iou_kind)
 
 float box_iou(const box & a, const box & b)
 {
+	// this function is used in many places
 	TAT_REVIEWED(TATPARMS, "2024-03-19");
 
 	const float I = box_intersection(a, b);
 	if (I == 0.0f)
 	{
-		return 0;
+		return 0.0f;
 	}
 
 	// if intersection is non-zero, then union will of course be non-zero, so no need to worry about divide-by-zero
-	const float U = box_union(a, b);
+	const float U = box_union(a, b, I);
 
 	return I / U;
 }
 
 float box_giou(const box & a, const box & b)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is used in several places
+	TAT_REVIEWED(TATPARMS, "2024-05-12");
 
 	boxabs ba = box_c(a, b);
 	const float w = ba.right - ba.left;
@@ -177,7 +201,8 @@ float box_diou(const box & a, const box & b)
 	/// https://github.com/Zzh-tju/DIoU-darknet
 	/// https://arxiv.org/abs/1911.08287
 
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is used in several places
+	TAT_REVIEWED(TATPARMS, "2024-05-12");
 
 	const boxabs ba = box_c(a, b);
 	const float w = ba.right - ba.left;
@@ -195,9 +220,10 @@ float box_diou(const box & a, const box & b)
 	return iou - diou_term;
 }
 
-float box_diounms(const box & a, const box & b, const float beta1)
+inline float box_diounms(const box & a, const box & b, const float beta1)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is only used in this file
+	TAT_REVIEWED(TATPARMS, "2024-05-12");
 
 	const boxabs ba = box_c(a, b);
 	const float w = ba.right - ba.left;
@@ -219,6 +245,8 @@ float box_ciou(const box & a, const box & b)
 {
 	// https://github.com/Zzh-tju/DIoU-darknet
 	// https://arxiv.org/abs/1911.08287
+
+	// this function is used in several places
 
 	TAT(TATPARMS);
 
@@ -245,6 +273,7 @@ float box_ciou(const box & a, const box & b)
 
 dxrep dx_box_iou(const box & pred, const box & truth, const IOU_LOSS iou_loss)
 {
+	// this function is used in several places
 	TAT(TATPARMS);
 
 	const boxabs pred_tblr = to_tblr(pred);
@@ -291,32 +320,38 @@ dxrep dx_box_iou(const box & pred, const box & truth, const IOU_LOSS iou_loss)
 	float p_db = 0;
 	float p_dl = 0;
 	float p_dr = 0;
-	if (U > 0 ) {
-	p_dt = ((U * dI_wrt_t) - (I * dU_wrt_t)) / (U * U);
-	p_db = ((U * dI_wrt_b) - (I * dU_wrt_b)) / (U * U);
-	p_dl = ((U * dI_wrt_l) - (I * dU_wrt_l)) / (U * U);
-	p_dr = ((U * dI_wrt_r) - (I * dU_wrt_r)) / (U * U);
+	if (U > 0 )
+	{
+		p_dt = ((U * dI_wrt_t) - (I * dU_wrt_t)) / (U * U);
+		p_db = ((U * dI_wrt_b) - (I * dU_wrt_b)) / (U * U);
+		p_dl = ((U * dI_wrt_l) - (I * dU_wrt_l)) / (U * U);
+		p_dr = ((U * dI_wrt_r) - (I * dU_wrt_r)) / (U * U);
 	}
+
 	// apply grad from prediction min/max for correct corner selection
 	p_dt = pred_tblr.top < pred_tblr.bot ? p_dt : p_db;
 	p_db = pred_tblr.top < pred_tblr.bot ? p_db : p_dt;
 	p_dl = pred_tblr.left < pred_tblr.right ? p_dl : p_dr;
 	p_dr = pred_tblr.left < pred_tblr.right ? p_dr : p_dl;
 
-	if (iou_loss == GIOU) {
-	if (giou_C > 0) {
-		// apply "C" term from gIOU
-		p_dt += ((giou_C * dU_wrt_t) - (U * dC_wrt_t)) / (giou_C * giou_C);
-		p_db += ((giou_C * dU_wrt_b) - (U * dC_wrt_b)) / (giou_C * giou_C);
-		p_dl += ((giou_C * dU_wrt_l) - (U * dC_wrt_l)) / (giou_C * giou_C);
-		p_dr += ((giou_C * dU_wrt_r) - (U * dC_wrt_r)) / (giou_C * giou_C);
-	}
-	if (Iw<=0||Ih<=0) {
-		p_dt = ((giou_C * dU_wrt_t) - (U * dC_wrt_t)) / (giou_C * giou_C);
-		p_db = ((giou_C * dU_wrt_b) - (U * dC_wrt_b)) / (giou_C * giou_C);
-		p_dl = ((giou_C * dU_wrt_l) - (U * dC_wrt_l)) / (giou_C * giou_C);
-		p_dr = ((giou_C * dU_wrt_r) - (U * dC_wrt_r)) / (giou_C * giou_C);
-	}
+	if (iou_loss == GIOU)
+	{
+		if (giou_C > 0)
+		{
+			// apply "C" term from gIOU
+			p_dt += ((giou_C * dU_wrt_t) - (U * dC_wrt_t)) / (giou_C * giou_C);
+			p_db += ((giou_C * dU_wrt_b) - (U * dC_wrt_b)) / (giou_C * giou_C);
+			p_dl += ((giou_C * dU_wrt_l) - (U * dC_wrt_l)) / (giou_C * giou_C);
+			p_dr += ((giou_C * dU_wrt_r) - (U * dC_wrt_r)) / (giou_C * giou_C);
+		}
+
+		if (Iw<=0||Ih<=0)
+		{
+			p_dt = ((giou_C * dU_wrt_t) - (U * dC_wrt_t)) / (giou_C * giou_C);
+			p_db = ((giou_C * dU_wrt_b) - (U * dC_wrt_b)) / (giou_C * giou_C);
+			p_dl = ((giou_C * dU_wrt_l) - (U * dC_wrt_l)) / (giou_C * giou_C);
+			p_dr = ((giou_C * dU_wrt_r) - (U * dC_wrt_r)) / (giou_C * giou_C);
+		}
 	}
 
 	float Ct = fmin(pred.y - pred.h / 2,truth.y - truth.h / 2);
@@ -370,37 +405,47 @@ dxrep dx_box_iou(const box & pred, const box & truth, const IOU_LOSS iou_loss)
 
 	// https://github.com/Zzh-tju/DIoU-darknet
 	// https://arxiv.org/abs/1911.08287
-	if (iou_loss == DIOU) {
-		if (C > 0) {
+	if (iou_loss == DIOU)
+	{
+		if (C > 0)
+		{
 			p_dx += (2*(truth.x-pred.x)*C-(2*Cw*dCw_dx+2*Ch*dCh_dx)*S) / (C * C);
 			p_dy += (2*(truth.y-pred.y)*C-(2*Cw*dCw_dy+2*Ch*dCh_dy)*S) / (C * C);
 			p_dw += (2*Cw*dCw_dw+2*Ch*dCh_dw)*S / (C * C);
 			p_dh += (2*Cw*dCw_dh+2*Ch*dCh_dh)*S / (C * C);
 		}
-	if (Iw<=0||Ih<=0){
-			p_dx = (2*(truth.x-pred.x)*C-(2*Cw*dCw_dx+2*Ch*dCh_dx)*S) / (C * C);
-			p_dy = (2*(truth.y-pred.y)*C-(2*Cw*dCw_dy+2*Ch*dCh_dy)*S) / (C * C);
-			p_dw = (2*Cw*dCw_dw+2*Ch*dCh_dw)*S / (C * C);
-			p_dh = (2*Cw*dCw_dh+2*Ch*dCh_dh)*S / (C * C);
+
+		if (Iw<=0||Ih<=0)
+		{
+				p_dx = (2*(truth.x-pred.x)*C-(2*Cw*dCw_dx+2*Ch*dCh_dx)*S) / (C * C);
+				p_dy = (2*(truth.y-pred.y)*C-(2*Cw*dCw_dy+2*Ch*dCh_dy)*S) / (C * C);
+				p_dw = (2*Cw*dCw_dw+2*Ch*dCh_dw)*S / (C * C);
+				p_dh = (2*Cw*dCw_dh+2*Ch*dCh_dh)*S / (C * C);
 		}
 	}
-	//The following codes are calculating the gradient of ciou.
 
-	if (iou_loss == CIOU) {
-	float ar_gt = truth.w / truth.h;
+	// The following codes are calculating the gradient of ciou.
+
+	if (iou_loss == CIOU)
+	{
+		float ar_gt = truth.w / truth.h;
 		float ar_pred = pred.w / pred.h;
 		float ar_loss = 4 / (M_PI * M_PI) * (atan(ar_gt) - atan(ar_pred)) * (atan(ar_gt) - atan(ar_pred));
-	float alpha = ar_loss / (1 - I/U + ar_loss + 0.000001);
-	float ar_dw=8/(M_PI*M_PI)*(atan(ar_gt)-atan(ar_pred))*pred.h;
+		float alpha = ar_loss / (1 - I/U + ar_loss + 0.000001);
+		float ar_dw=8/(M_PI*M_PI)*(atan(ar_gt)-atan(ar_pred))*pred.h;
 		float ar_dh=-8/(M_PI*M_PI)*(atan(ar_gt)-atan(ar_pred))*pred.w;
-		if (C > 0) {
-		// dar*
+
+		if (C > 0)
+		{
+			// dar*
 			p_dx += (2*(truth.x-pred.x)*C-(2*Cw*dCw_dx+2*Ch*dCh_dx)*S) / (C * C);
 			p_dy += (2*(truth.y-pred.y)*C-(2*Cw*dCw_dy+2*Ch*dCh_dy)*S) / (C * C);
 			p_dw += (2*Cw*dCw_dw+2*Ch*dCh_dw)*S / (C * C) + alpha * ar_dw;
 			p_dh += (2*Cw*dCw_dh+2*Ch*dCh_dh)*S / (C * C) + alpha * ar_dh;
 		}
-	if (Iw<=0||Ih<=0){
+
+		if (Iw<=0||Ih<=0)
+		{
 			p_dx = (2*(truth.x-pred.x)*C-(2*Cw*dCw_dx+2*Ch*dCh_dx)*S) / (C * C);
 			p_dy = (2*(truth.y-pred.y)*C-(2*Cw*dCw_dy+2*Ch*dCh_dy)*S) / (C * C);
 			p_dw = (2*Cw*dCw_dw+2*Ch*dCh_dw)*S / (C * C) + alpha * ar_dw;
@@ -419,6 +464,7 @@ dxrep dx_box_iou(const box & pred, const box & truth, const IOU_LOSS iou_loss)
 
 float box_rmse(const box & a, const box & b)
 {
+	// this function is used in multiple places
 	TAT_REVIEWED(TATPARMS, "2024-03-19");
 
 	return sqrt(pow(a.x-b.x, 2) +
@@ -427,9 +473,10 @@ float box_rmse(const box & a, const box & b)
 				pow(a.h-b.h, 2));
 }
 
-dbox dintersect(const box & a, const box & b)
+inline dbox dintersect(const box & a, const box & b)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is only used in this file
+	TAT_REVIEWED(TATPARMS, "2024-05-12");
 
 	const float w = overlap(a.x, a.w, b.x, b.w);
 	const float h = overlap(a.y, a.h, b.y, b.h);
@@ -444,9 +491,10 @@ dbox dintersect(const box & a, const box & b)
 	return di;
 }
 
-dbox dunion(const box & a, const box & b)
+inline dbox dunion(const box & a, const box & b)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// this function is only used in this file
+	TAT_REVIEWED(TATPARMS, "2024-05-12");
 
 	const dbox di = dintersect(a, b);
 
@@ -543,6 +591,7 @@ void test_box()
 
 dbox diou(const box & a, const box & b)
 {
+	// this function is called from multiple locations
 	TAT(TATPARMS); // not marking it as reviewed since the code below has a serious bug!
 
 	const float u = box_union(a, b);
@@ -577,15 +626,19 @@ dbox diou(const box & a, const box & b)
 	return dd;
 }
 
-struct sortable_bbox
+namespace
 {
-	int index;
-	int class_id;
-	float **probs;
-};
+	struct sortable_bbox
+	{
+		int index;
+		int class_id;
+		float **probs;
+	};
+}
 
-int nms_comparator(const void *pa, const void *pb)
+inline int nms_comparator(const void *pa, const void *pb)
 {
+	// this is only called from 1 place
 	TAT(TATPARMS);
 
 	sortable_bbox a = *(sortable_bbox *)pa;
@@ -606,8 +659,11 @@ int nms_comparator(const void *pa, const void *pb)
 	return 0;
 }
 
+
 void do_nms_sort_v2(box *boxes, float **probs, int total, int classes, float thresh)
 {
+	// 2024-04-25:  I think this one is no longer called.
+
 	TAT(TATPARMS);
 
 	int i, j, k;
@@ -650,70 +706,66 @@ void do_nms_sort_v2(box *boxes, float **probs, int total, int classes, float thr
 	free(s);
 }
 
-int nms_comparator_v3(const void *pa, const void *pb)
+
+namespace
 {
-	TAT(TATPARMS);
-
-	detection a = *(detection *)pa;
-	detection b = *(detection *)pb;
-	float diff = 0.0f;
-	if (b.sort_class >= 0)
+	static inline void sort_box_detections(detection * dets, const int total)
 	{
-		diff = a.prob[b.sort_class] - b.prob[b.sort_class]; // there is already: prob = objectness*prob
-	}
-	else
-	{
-		diff = a.objectness - b.objectness;
-	}
+		TAT(TATPARMS);
 
-	if (diff < 0.0f)
-	{
-		return 1;
-	}
+		if (total > 1)
+		{
+			// We want to sort from high probability to low probability.  The default sort behaviour would be to
+			// sort from low to high.  We reverse the sort order by comparing RHS to LHS instead of LHS to RHS.
 
-	if (diff > 0.0f)
-	{
-		return -1;
-	}
+			std::sort(dets, dets + total,
+					[](const detection & lhs, const detection & rhs) -> bool
+					{
+						if (rhs.sort_class < 0)
+						{
+							return rhs.objectness < lhs.objectness;
+						}
 
-	return 0;
+						return rhs.prob[rhs.sort_class] < lhs.prob[rhs.sort_class];
+					});
+		}
+	}
 }
+
 
 void do_nms_obj(detection *dets, int total, int classes, float thresh)
 {
+	// 2024-04-25:  this one seems to be called often
+
 	TAT(TATPARMS);
 
-	int i, j, k;
-	k = total - 1;
-	for (i = 0; i <= k; ++i)
+	int k = total - 1;
+	for (int i = 0; i <= k; ++i)
 	{
 		if (dets[i].objectness == 0)
 		{
-			detection swap = dets[i];
-			dets[i] = dets[k];
-			dets[k] = swap;
+			std::swap(dets[i], dets[k]);
 			--k;
 			--i;
 		}
 	}
 	total = k + 1;
 
-	for (i = 0; i < total; ++i)
+	for (int i = 0; i < total; ++i)
 	{
 		dets[i].sort_class = -1;
 	}
 
-	/// @todo replace qsort() higher priority
-	qsort(dets, total, sizeof(detection), nms_comparator_v3);
+	sort_box_detections(dets, total);
 
-	for (i = 0; i < total; ++i)
+	for (int i = 0; i < total; ++i)
 	{
 		if (dets[i].objectness == 0)
 		{
 			continue;
 		}
 		box a = dets[i].bbox;
-		for (j = i + 1; j < total; ++j)
+		for (int j = i + 1; j < total; ++j)
 		{
 			if (dets[j].objectness == 0)
 			{
@@ -723,7 +775,7 @@ void do_nms_obj(detection *dets, int total, int classes, float thresh)
 			if (box_iou(a, b) > thresh)
 			{
 				dets[j].objectness = 0;
-				for (k = 0; k < classes; ++k)
+				for (int k = 0; k < classes; ++k)
 				{
 					dets[j].prob[k] = 0;
 				}
@@ -734,17 +786,15 @@ void do_nms_obj(detection *dets, int total, int classes, float thresh)
 
 void do_nms_sort(detection *dets, int total, int classes, float thresh)
 {
+	// this is called from everywhere
 	TAT(TATPARMS);
 
-	int i, j, k;
-	k = total - 1;
-	for (i = 0; i <= k; ++i)
+	int k = total - 1;
+	for (int i = 0; i <= k; ++i)
 	{
 		if (dets[i].objectness == 0)
 		{
-			detection swap = dets[i];
-			dets[i] = dets[k];
-			dets[k] = swap;
+			std::swap(dets[i], dets[k]);
 			--k;
 			--i;
 		}
@@ -753,28 +803,27 @@ void do_nms_sort(detection *dets, int total, int classes, float thresh)
 
 	for (k = 0; k < classes; ++k)
 	{
-		for (i = 0; i < total; ++i)
+		for (int i = 0; i < total; ++i)
 		{
 			dets[i].sort_class = k;
 		}
 
-		/// @todo replace qsort() higher priority
-		qsort(dets, total, sizeof(detection), nms_comparator_v3);
+		sort_box_detections(dets, total);
 
-		for (i = 0; i < total; ++i)
+		for (int i = 0; i < total; ++i)
 		{
 			//printf("  k = %d, \t i = %d \n", k, i);
-			if (dets[i].prob[k] == 0)
+			if (dets[i].prob[k] == 0.0f)
 			{
 				continue;
 			}
 			box a = dets[i].bbox;
-			for (j = i + 1; j < total; ++j)
+			for (int j = i + 1; j < total; ++j)
 			{
 				box b = dets[j].bbox;
 				if (box_iou(a, b) > thresh)
 				{
-					dets[j].prob[k] = 0;
+					dets[j].prob[k] = 0.0f;
 				}
 			}
 		}
@@ -783,6 +832,7 @@ void do_nms_sort(detection *dets, int total, int classes, float thresh)
 
 void do_nms(box *boxes, float **probs, int total, int classes, float thresh)
 {
+	// this is called from many locations
 	TAT(TATPARMS);
 
 	for (int i = 0; i < total; ++i)
@@ -822,41 +872,40 @@ void do_nms(box *boxes, float **probs, int total, int classes, float thresh)
 // https://arxiv.org/abs/1911.08287
 void diounms_sort(detection *dets, int total, int classes, float thresh, NMS_KIND nms_kind, float beta1)
 {
+	// this is called from several locations
 	TAT(TATPARMS);
 
-	int i, j, k;
-	k = total - 1;
-	for (i = 0; i <= k; ++i)
+	int k = total - 1;
+	for (int i = 0; i <= k; ++i)
 	{
 		if (dets[i].objectness == 0)
 		{
-			detection swap = dets[i];
-			dets[i] = dets[k];
-			dets[k] = swap;
+			std::swap(dets[i], dets[k]);
 			--k;
 			--i;
 		}
 	}
 	total = k + 1;
 
+//	std::cout << "diounms total is " << total << std::endl;
+
 	for (k = 0; k < classes; ++k)
 	{
-		for (i = 0; i < total; ++i)
+		for (int i = 0; i < total; ++i)
 		{
 			dets[i].sort_class = k;
 		}
 
-		/// @todo replace qsort() lower priority
-		qsort(dets, total, sizeof(detection), nms_comparator_v3);
+		sort_box_detections(dets, total);
 
-		for (i = 0; i < total; ++i)
+		for (int i = 0; i < total; ++i)
 		{
 			if (dets[i].prob[k] == 0)
 			{
 				continue;
 			}
 			box a = dets[i].bbox;
-			for (j = i + 1; j < total; ++j)
+			for (int j = i + 1; j < total; ++j)
 			{
 				box b = dets[j].bbox;
 				if (box_iou(a, b) > thresh && nms_kind == CORNERS_NMS)
@@ -881,7 +930,8 @@ void diounms_sort(detection *dets, int total, int classes, float thresh, NMS_KIN
 
 box encode_box(const box & b, const box & anchor)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// not called, but exposed in the API
+	TAT_REVIEWED(TATPARMS, "2024-05-12");
 
 	box encode;
 	encode.x = (b.x - anchor.x) / anchor.w;
@@ -894,7 +944,8 @@ box encode_box(const box & b, const box & anchor)
 
 box decode_box(const box & b, const box & anchor)
 {
-	TAT_REVIEWED(TATPARMS, "2024-03-19");
+	// not called, but exposed in the API
+	TAT_REVIEWED(TATPARMS, "2024-05-12");
 
 	box decode;
 	decode.x = b.x * anchor.w + anchor.x;

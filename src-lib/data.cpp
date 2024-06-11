@@ -1,8 +1,6 @@
 #include "data.hpp"
 #include "darknet_internal.hpp"
 
-extern int check_mistakes;
-
 #define NUMCHARS 37
 
 
@@ -10,78 +8,35 @@ namespace
 {
 	static auto & cfg_and_state = Darknet::CfgAndState::get();
 
-#if 0
-	/** The permanent image loading threads started by @ref Darknet::run_image_loading_control_thread().
+	/** The permanent data-loading (image, bboxes) threads started by @ref Darknet::run_image_loading_control_thread().
 	 *
 	 * @since 2024-04-03
 	 */
-	Darknet::VThreads image_data_loading_threads;
-
-	/** New items are inserted at the @em back, and the consumer then removes things from the @em front of the deque.
-	 *
-	 * @see @ref image_data_cache;
-	 *
-	 * @since 2024-04-02
-	 */
-	using ImageDataCache = std::deque<load_args>;
-
-	/** New items are inserted at the front by the image loading threads, and the consumer (training thread)
-	 * removes items from the back of the deque.
-	 *
-	 * @ref image_data_cache_mutex
-	 *
-	 * @since 2024-04-02
-	 */
-	ImageDataCache image_data_cache;
-
-	/** When the @ref image_data_cache must be modified, other threads must be locked out.
-	 * This mutex is used for that purpose.
-	 *
-	 * @ref image_data_cache
-	 *
-	 * @since 2024-04-02
-	 */
-	std::mutex image_data_cache_mutex;
-
-	/** Trigger for image data cache.
-	 *
-	 * @since 2024-04-02
-	 */
-	std::condition_variable image_data_cache_trigger;
-#endif
+	static Darknet::VThreads data_loading_threads;
 
 
 	/** Flag used by the image data loading threads to determine if they need to exit.
 	 *
 	 * @since 2024-04-02
 	 */
-	std::atomic<bool> image_data_loading_threads_must_exit = false;
+	static std::atomic<bool> image_data_loading_threads_must_exit = false;
 
-	/** @{
-	 * Permanent data-loading (image, bboxes) threads started by @ref run_image_loading_control_thread().
+
+	/** Flags to indicate to individual data loading threads what they should do.  @p 0 is stop, and @p 1 is go.
+	 * These flags are normally @p 0 and then are set to @p 1 by @ref run_image_loading_control_thread().
 	 *
-	 * @todo Check to see if it loads just images, or images and bboxes.
+	 * (Was @p std::vector<bool> but that individual bit handling, and we only have a few threads.)
 	 *
-	 * @since 2024-04-08
+	 * @since 2024-04-10
 	 */
-	static std::vector<std::thread>				data_loading_threads;
-//	static std::vector<std::mutex>				data_loading_mutexes;
-//	static std::vector<std::condition_variable>	data_loading_triggers;
+	static std::vector<int> data_loading_per_thread_flag;
+
+
+	/// @{ @todo: delete these once the code is cleaned up
+	static const std::chrono::milliseconds thread_wait_ms(5); ///< @todo DELETE THIS! :(
+	static load_args * args_swap = NULL; ///< @todo I wish I better understood how/why this exists...
+	static std::mutex args_swap_mutex; // used to protect access to args_swap
 	/// @}
-
-	/** Undocumented mutex around some of the file path logic.
-	 *
-	 * @todo Needs to be investigated, as there are zero comments indicating exactly what is being protected and why.
-	 * This used to be a pthread mutex, was converted to a normal C++11 std::mutex in March 2024.
-	 */
-	static std::mutex data_path_mutex;
-
-
-	/// @todo: delete these
-	static const int thread_wait_ms = 5;
-	static volatile int * run_load_data = NULL; // per-thread, int that determines if thread can run 0=stop 1=go
-	static load_args * args_swap = NULL;
-	static std::mutex load_data_mutex; // used to protect access to args_swap
 }
 
 
@@ -111,15 +66,15 @@ char **get_sequential_paths(char **paths, int n, int m, int mini_batch, int augm
 	TAT(TATPARMS);
 
 	int speed = rand_int(1, augment_speed);
-	if (speed < 1) speed = 1;
+	if (speed < 1)
+	{
+		speed = 1;
+	}
+
 	char** sequentia_paths = (char**)xcalloc(n, sizeof(char*));
-	int i;
 
-	std::scoped_lock lock(data_path_mutex);
-
-	//printf("n = %d, mini_batch = %d \n", n, mini_batch);
 	unsigned int *start_time_indexes = (unsigned int *)xcalloc(mini_batch, sizeof(unsigned int));
-	for (i = 0; i < mini_batch; ++i)
+	for (int i = 0; i < mini_batch; ++i)
 	{
 		if (contrastive && (i % 2) == 1)
 		{
@@ -129,28 +84,15 @@ char **get_sequential_paths(char **paths, int n, int m, int mini_batch, int augm
 		{
 			start_time_indexes[i] = random_gen() % m;
 		}
-
-		//printf(" start_time_indexes[i] = %u, ", start_time_indexes[i]);
 	}
 
-	for (i = 0; i < n; ++i)
+	for (int i = 0; i < n; ++i)
 	{
-		do
-		{
-			int time_line_index = i % mini_batch;
-			unsigned int index = start_time_indexes[time_line_index] % m;
-			start_time_indexes[time_line_index] += speed;
+		int time_line_index = i % mini_batch;
+		unsigned int index = start_time_indexes[time_line_index] % m;
+		start_time_indexes[time_line_index] += speed;
 
-			//int index = random_gen() % m;
-			sequentia_paths[i] = paths[index];
-			//printf(" index = %d, ", index);
-			//if(i == 0) printf("%s\n", paths[index]);
-			//printf(" index = %u - grp: %s \n", index, paths[index]);
-			if (strlen(sequentia_paths[i]) <= 4)
-			{
-				printf(" Very small path to the image: %s \n", sequentia_paths[i]);
-			}
-		} while (strlen(sequentia_paths[i]) == 0);
+		sequentia_paths[i] = paths[index];
 	}
 	free(start_time_indexes);
 
@@ -162,32 +104,22 @@ char **get_random_paths_custom(char **paths, int n, int m, int contrastive)
 	TAT(TATPARMS);
 
 	char** random_paths = (char**)xcalloc(n, sizeof(char*));
-	int i;
-
-	std::scoped_lock lock(data_path_mutex);
 
 	int old_index = 0;
-	//printf("n = %d \n", n);
-	for (i = 0; i < n; ++i)
-	{
-		do
-		{
-			int index = random_gen() % m;
-			if (contrastive && (i % 2 == 1))
-			{
-				index = old_index;
-			}
-			else
-			{
-				old_index = index;
-			}
-			random_paths[i] = paths[index];
-			if (strlen(random_paths[i]) <= 4)
-			{
-				printf(" Very small path to the image: %s \n", random_paths[i]);
-			}
 
-		} while (strlen(random_paths[i]) == 0);
+	// "n" is the total number of filenames to be returned at once
+	for (int i = 0; i < n; ++i)
+	{
+		int index = random_gen() % m;
+		if (contrastive && (i % 2 == 1))
+		{
+			index = old_index;
+		}
+		else
+		{
+			old_index = index;
+		}
+		random_paths[i] = paths[index];
 	}
 
 	return random_paths;
@@ -308,21 +240,9 @@ box_label *read_boxes(char *filename, int *n)
 	FILE *file = fopen(filename, "r");
 	if (!file)
 	{
-		printf("Can't open label file. (This can be normal only if you use MSCOCO): %s \n", filename);
-		//file_error(filename, DARKNET_LOC);
-		FILE* fw = fopen("bad.list", "a");
-		fwrite(filename, sizeof(char), strlen(filename), fw);
-		char *new_line = "\n";
-		fwrite(new_line, sizeof(char), strlen(new_line), fw);
-		fclose(fw);
-		if (check_mistakes)
-		{
-			darknet_fatal_error(DARKNET_LOC, "mistakes found while reading bounding boxes (%s)", filename);
+		darknet_fatal_error(DARKNET_LOC, "failed to open annotation file \"%s\"", filename);
 		}
 
-		*n = 0;
-		return boxes;
-	}
 	const int max_obj_img = 4000;// 30000;
 	const int img_hash = (custom_hash(filename) % max_obj_img)*max_obj_img;
 	//printf(" img_hash = %d, filename = %s; ", img_hash, filename);
@@ -359,10 +279,8 @@ void randomize_boxes(box_label *b, int n)
 	int i;
 	for(i = 0; i < n; ++i)
 	{
-		box_label swap = b[i];
-		int index = random_gen()%n;
-		b[i] = b[index];
-		b[index] = swap;
+		const auto index = random_gen()%n;
+		std::swap(b[i], b[index]);
 	}
 }
 
@@ -398,8 +316,8 @@ void correct_boxes(box_label *boxes, int n, float dx, float dy, float sx, float 
 		if(flip)
 		{
 			float swap = boxes[i].left;
-			boxes[i].left = 1. - boxes[i].right;
-			boxes[i].right = 1. - swap;
+			boxes[i].left = 1.0f - boxes[i].right;
+			boxes[i].right = 1.0f - swap;
 		}
 
 		boxes[i].left =  constrain(0, 1, boxes[i].left);
@@ -516,9 +434,10 @@ void fill_truth_region(char *path, float *truth, int classes, int num_boxes, int
 	free(boxes);
 }
 
-int fill_truth_detection(const char *path, int num_boxes, int truth_size, float *truth, int classes, int flip, float dx, float dy, float sx, float sy,
-	int net_w, int net_h)
+int fill_truth_detection(const char *path, int num_boxes, int truth_size, float *truth, int classes, int flip, float dx, float dy, float sx, float sy, int net_w, int net_h)
 {
+	// This method is used during the training process to load the boxes for the given image.
+
 	TAT(TATPARMS);
 
 	char labelpath[4096];
@@ -549,7 +468,6 @@ int fill_truth_detection(const char *path, int num_boxes, int truth_size, float 
 		id = boxes[i].id;
 		int track_id = boxes[i].track_id;
 
-/// @todo Search for getchar() in the lines below and turn all of these to calls into darknet_fatal_error()
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-overflow"
@@ -558,15 +476,10 @@ int fill_truth_detection(const char *path, int num_boxes, int truth_size, float 
 		// not detect small objects
 		//if ((w < 0.001F || h < 0.001F)) continue;
 		// if truth (box for object) is smaller than 1x1 pix
-		char buff[256];
+		//char buff[256];
 		if (id >= classes)
 		{
-			printf("\n Wrong annotation: class_id = %d. But class_id should be [from 0 to %d], file: %s \n", id, (classes-1), labelpath);
-			sprintf(buff, "echo %s \"Wrong annotation: class_id = %d. But class_id should be [from 0 to %d]\" >> bad_label.list", labelpath, id, (classes-1));
-			system(buff);
-			if (check_mistakes) getchar();
-			++sub;
-			continue;
+			darknet_fatal_error(DARKNET_LOC, "invalid class ID #%d in %s", id, labelpath);
 		}
 		if ((w < lowest_w || h < lowest_h))
 		{
@@ -578,37 +491,22 @@ int fill_truth_detection(const char *path, int num_boxes, int truth_size, float 
 
 		if (x == 999999 || y == 999999)
 		{
-			printf("\n Wrong annotation: x = 0, y = 0, < 0 or > 1, file: %s \n", labelpath);
-			sprintf(buff, "echo %s \"Wrong annotation: x = 0 or y = 0\" >> bad_label.list", labelpath);
-			system(buff);
-			++sub;
-			if (check_mistakes) getchar();
-			continue;
+			darknet_fatal_error(DARKNET_LOC, "invalid annotation for class ID #%d in %s", id, labelpath);
 		}
-		if (x <= 0 || x > 1 || y <= 0 || y > 1)
+		/// @todo shouldn't this be x - w/2 < 0.0f?  And same for other variables?
+		if (x <= 0.0f || x > 1.0f || y <= 0.0f || y > 1.0f)
 		{
-			printf("\n Wrong annotation: x = %f, y = %f, file: %s \n", x, y, labelpath);
-			sprintf(buff, "echo %s \"Wrong annotation: x = %f, y = %f\" >> bad_label.list", labelpath, x, y);
-			system(buff);
-			++sub;
-			if (check_mistakes) getchar();
-			continue;
+			darknet_fatal_error(DARKNET_LOC, "invalid coordinates for class ID #%d in %s", id, labelpath);
 		}
-		if (w > 1)
+		/// @todo again, instead of checking for > 1, shouldn't we check x + w / 2 ?
+		if (w > 1.0f)
 		{
-			printf("\n Wrong annotation: w = %f, file: %s \n", w, labelpath);
-			sprintf(buff, "echo %s \"Wrong annotation: w = %f\" >> bad_label.list", labelpath, w);
-			system(buff);
-			w = 1;
-			if (check_mistakes) getchar();
+			darknet_fatal_error(DARKNET_LOC, "invalid width for class ID #%d in %s", id, labelpath);
 		}
-		if (h > 1)
+		/// @todo check for y - h/2 and y + h/2?
+		if (h > 1.0f)
 		{
-			printf("\n Wrong annotation: h = %f, file: %s \n", h, labelpath);
-			sprintf(buff, "echo %s \"Wrong annotation: h = %f\" >> bad_label.list", labelpath, h);
-			system(buff);
-			h = 1;
-			if (check_mistakes) getchar();
+			darknet_fatal_error(DARKNET_LOC, "invalid height for class ID #%d in %s", id, labelpath);
 		}
 
 #ifdef __GNUC__
@@ -904,7 +802,10 @@ void Darknet::free_data(data & d)
 	{
 		free(d.X.vals);
 		free(d.y.vals);
+		d.X.vals = nullptr;
+		d.y.vals = nullptr;
 	}
+	return;
 }
 
 data load_data_region(int n, char **paths, int m, int w, int h, int c, int size, int classes, float jitter, float hue, float saturation, float exposure)
@@ -923,7 +824,7 @@ data load_data_region(int n, char **paths, int m, int w, int h, int c, int size,
 
 	int k = size*size*(5+classes);
 	d.y = make_matrix(n, k);
-	for(i = 0; i < n; ++i)
+	for (i = 0; i < n; ++i)
 	{
 		image orig = load_image(random_paths[i], 0, 0, c);
 
@@ -1256,40 +1157,43 @@ void blend_truth_mosaic(float *new_truth, int boxes, int truth_size, float *old_
 	//printf("\n was %d bboxes, now %d bboxes \n", count_new_truth, t);
 }
 
-/// @todo DELETE THIS!
-#include "http_stream.hpp"
 
 data load_data_detection(int n, char **paths, int m, int w, int h, int c, int boxes, int truth_size, int classes, int use_flip, int use_gaussian_noise, int use_blur, int use_mixup,
 	float jitter, float resize, float hue, float saturation, float exposure, int mini_batch, int track, int augment_speed, int letter_box, int mosaic_bound, int contrastive, int contrastive_jit_flip, int contrastive_color, int show_imgs)
 {
+	// This is the method that gets called to load the "n" images for each loading thread while training a network.
+
 	TAT(TATPARMS);
 
-	const int random_index = random_gen();
 	c = c ? c : 3;
 
 	if (use_mixup == 2 || use_mixup == 4)
 	{
-		printf("\n cutmix=1 - isn't supported for Detector (use cutmix=1 only for Classifier) \n");
-		if (check_mistakes) getchar();
-		if(use_mixup == 2) use_mixup = 0;
-		else use_mixup = 3;
+		darknet_fatal_error(DARKNET_LOC, "cutmix=1 isn't supported for detector (only classifier can use cutmix=1)");
 	}
+
 	if (use_mixup == 3 && letter_box)
 	{
 		//printf("\n Combination: letter_box=1 & mosaic=1 - isn't supported, use only 1 of these parameters \n");
 		//if (check_mistakes) getzzzchar();
 		//exit(0);
 	}
-	if (random_gen() % 2 == 0) use_mixup = 0;
-	int i;
 
-	int *cut_x = NULL, *cut_y = NULL;
+	if (random_gen() % 2 == 0)
+	{
+		use_mixup = 0;
+	}
+
+	int *cut_x = nullptr;
+	int *cut_y = nullptr;
+
 	if (use_mixup == 3)
 	{
 		cut_x = (int*)calloc(n, sizeof(int));
 		cut_y = (int*)calloc(n, sizeof(int));
 		const float min_offset = 0.2; // 20%
-		for (i = 0; i < n; ++i)
+
+		for (int i = 0; i < n; ++i)
 		{
 			cut_x[i] = rand_int(w*min_offset, w*(1 - min_offset));
 			cut_y[i] = rand_int(h*min_offset, h*(1 - min_offset));
@@ -1303,14 +1207,23 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 	d.X.vals = (float**)xcalloc(d.X.rows, sizeof(float*));
 	d.X.cols = h*w*c;
 
-	float r1 = 0, r2 = 0, r3 = 0, r4 = 0;
-	float resize_r1 = 0, resize_r2 = 0;
-	float dhue = 0, dsat = 0, dexp = 0, flip = 0, blur = 0;
-	int augmentation_calculated = 0, gaussian_noise = 0;
+	float r1 = 0.0f;
+	float r2 = 0.0f;
+	float r3 = 0.0f;
+	float r4 = 0.0f;
+	float resize_r1 = 0.0f;
+	float resize_r2 = 0.0f;
+	float dhue = 0.0f;
+	float dsat = 0.0f;
+	float dexp = 0.0f;
+	float flip = 0.0f;
+	float blur = 0.0f;
+	int augmentation_calculated = 0;
+	int gaussian_noise = 0;
 
-	d.y = make_matrix(n, truth_size*boxes);
-	int i_mixup = 0;
-	for (i_mixup = 0; i_mixup <= use_mixup; i_mixup++)
+	d.y = make_matrix(n, truth_size * boxes);
+
+	for (int i_mixup = 0; i_mixup <= use_mixup; i_mixup++)
 	{
 		if (i_mixup)
 		{
@@ -1327,7 +1240,8 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 			random_paths = get_random_paths_custom(paths, n, m, contrastive);
 		}
 
-		for (i = 0; i < n; ++i)
+		// about to load multiple images ("n"), usually batch size divided by the number of loading threads
+		for (int i = 0; i < n; ++i)
 		{
 			float *truth = (float*)xcalloc(truth_size * boxes, sizeof(float));
 			const char *filename = random_paths[i];
@@ -1336,30 +1250,31 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 			src = load_image_mat_cv(filename, c);
 			if (src == NULL)
 			{
-				printf("\n Error in load_data_detection() - OpenCV \n");
-				fflush(stdout);
-				if (check_mistakes)
-				{
-					getchar();
-				}
-				continue;
+				darknet_fatal_error(DARKNET_LOC, "failed to read image \"%s\"", filename);
 			}
 
-			int oh = get_height_mat(src);
-			int ow = get_width_mat(src);
+			const int oh = get_height_mat(src);	// original height
+			const int ow = get_width_mat(src);	// original width
 
 			int dw = (ow*jitter);
 			int dh = (oh*jitter);
 
-			float resize_down = resize, resize_up = resize;
-			if (resize_down > 1.0) resize_down = 1 / resize_down;
-			int min_rdw = ow*(1 - (1 / resize_down)) / 2;   // < 0
-			int min_rdh = oh*(1 - (1 / resize_down)) / 2;   // < 0
+			float resize_down = resize;
+			float resize_up = resize;
 
-			if (resize_up < 1.0) resize_up = 1 / resize_up;
-			int max_rdw = ow*(1 - (1 / resize_up)) / 2;     // > 0
-			int max_rdh = oh*(1 - (1 / resize_up)) / 2;     // > 0
-			//printf(" down = %f, up = %f \n", (1 - (1 / resize_down)) / 2, (1 - (1 / resize_up)) / 2);
+			if (resize_down > 1.0f)
+			{
+				resize_down = 1.0f / resize_down;
+			}
+			const int min_rdw = ow *(1.0f - (1.0f / resize_down)) / 2.0f;   // < 0
+			const int min_rdh = oh *(1.0f - (1.0f / resize_down)) / 2.0f;   // < 0
+
+			if (resize_up < 1.0f)
+			{
+				resize_up = 1.0f / resize_up;
+			}
+			const int max_rdw = ow * (1.0f - (1.0f / resize_up)) / 2.0f;     // > 0
+			const int max_rdh = oh * (1.0f - (1.0f / resize_up)) / 2.0f;     // > 0
 
 			if (!augmentation_calculated || !track)
 			{
@@ -1384,11 +1299,21 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 					dexp = rand_scale(exposure);
 				}
 
-				if (use_blur) {
+				if (use_blur)
+				{
 					int tmp_blur = rand_int(0, 2);  // 0 - disable, 1 - blur background, 2 - blur the whole image
-					if (tmp_blur == 0) blur = 0;
-					else if (tmp_blur == 1) blur = 1;
-					else blur = use_blur;
+					if (tmp_blur == 0)
+					{
+						blur = 0;
+					}
+					else if (tmp_blur == 1)
+					{
+						blur = 1;
+					}
+					else
+					{
+						blur = use_blur;
+					}
 				}
 
 				if (use_gaussian_noise && rand_int(0, 1) == 1)
@@ -1406,7 +1331,7 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 			int ptop = rand_precalc_random(-dh, dh, r3);
 			int pbot = rand_precalc_random(-dh, dh, r4);
 
-			if (resize < 1)
+			if (resize < 1.0f)
 			{
 				// downsize only
 				pleft += rand_precalc_random(min_rdw, 0, resize_r1);
@@ -1472,21 +1397,24 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 				}
 			}
 
-			int swidth = ow - pleft - pright;
-			int sheight = oh - ptop - pbot;
+			const int swidth = ow - pleft - pright;
+			const int sheight = oh - ptop - pbot;
 
-			float sx = (float)swidth / ow;
-			float sy = (float)sheight / oh;
+			const float sx = (float)swidth / ow;
+			const float sy = (float)sheight / oh;
 
-			float dx = ((float)pleft / ow) / sx;
-			float dy = ((float)ptop / oh) / sy;
+			const float dx = ((float)pleft / ow) / sx;
+			const float dy = ((float)ptop / oh) / sy;
 
-
-			int min_w_h = fill_truth_detection(filename, boxes, truth_size, truth, classes, flip, dx, dy, 1. / sx, 1. / sy, w, h);
+			// This is where we get the annotations for this image.
+			const int min_w_h = fill_truth_detection(filename, boxes, truth_size, truth, classes, flip, dx, dy, 1. / sx, 1. / sy, w, h);
 			//for (int z = 0; z < boxes; ++z) if(truth[z*truth_size] > 0) printf(" track_id = %f \n", truth[z*truth_size + 5]);
 			//printf(" truth_size = %d \n", truth_size);
 
-			if ((min_w_h / 8) < blur && blur > 1) blur = min_w_h / 8;   // disable blur if one of the objects is too small
+			if ((min_w_h / 8) < blur && blur > 1)
+			{
+				blur = min_w_h / 8;   // disable blur if one of the objects is too small
+			}
 
 			image ai = image_data_augmentation(src, w, h, pleft, ptop, swidth, sheight, flip, dhue, dsat, dexp, gaussian_noise, blur, boxes, truth_size, truth);
 
@@ -1572,9 +1500,10 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 				ai.data = d.X.vals[i];
 			}
 
-
 			if (show_imgs && i_mixup == use_mixup)   // delete i_mixup
 			{
+				const int random_index = random_gen();
+
 				image tmp_ai = copy_image(ai);
 				char buff[1000];
 				//sprintf(buff, "aug_%d_%d_%s_%d", random_index, i, basecfg((char*)filename), random_gen());
@@ -1607,7 +1536,11 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 			release_mat(&src);
 			free(truth);
 		}
-		if (random_paths) free(random_paths);
+
+		if (random_paths)
+		{
+			free(random_paths);
+		}
 	}
 
 	return d;
@@ -1616,11 +1549,14 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 
 void Darknet::load_single_image_data(load_args args)
 {
+	// Note:  even though the name is load_single_image_data() note that this will likely result in more than 1 image
+	// loaded due to the args.n parameter.
+
 	TAT(TATPARMS);
 
-	if(args.aspect		== 0.0f)	args.aspect		= 1.0f;
-	if(args.exposure	== 0.0f)	args.exposure	= 1.0f;
-	if(args.saturation	== 0.0f)	args.saturation	= 1.0f;
+	if (args.aspect		== 0.0f)	args.aspect		= 1.0f;
+	if (args.exposure	== 0.0f)	args.exposure	= 1.0f;
+	if (args.saturation	== 0.0f)	args.saturation	= 1.0f;
 
 	switch (args.type)
 	{
@@ -1640,7 +1576,7 @@ void Darknet::load_single_image_data(load_args args)
 		}
 		case DETECTION_DATA:
 		{
-			// 2024:  used in detector.cpp
+			// 2024:  used in detector.cpp (when training a neural network)
 			*args.d = load_data_detection(args.n, args.paths, args.m, args.w, args.h, args.c, args.num_boxes, args.truth_size, args.classes, args.flip, args.gaussian_noise, args.blur, args.mixup, args.jitter, args.resize,
 					args.hue, args.saturation, args.exposure, args.mini_batch, args.track, args.augment_speed, args.letter_box, args.mosaic_bound, args.contrastive, args.contrastive_jit_flip, args.contrastive_color, args.show_imgs);
 			break;
@@ -1693,34 +1629,49 @@ void Darknet::load_single_image_data(load_args args)
 }
 
 
-void Darknet::image_loading_loop(const int idx)
+void Darknet::image_loading_loop(const int idx, load_args args)
 {
 	// This loop runs on a secondary thread.
 
-	TAT(TATPARMS);
+	TAT_REVIEWED(TATPARMS, "2024-04-11");
 
-	while (image_data_loading_threads_must_exit == false and cfg_and_state.must_immediately_exit == false)
+	cfg_and_state.set_thread_name("image loading loop #" + std::to_string(idx));
+
+	const int number_of_threads	= args.threads;	// typically will be 6
+	const int number_of_images	= args.n;		// typically will be 64 (batch size)
+
+	// calculate the number of images this thread needs to load at once
+	// e.g., 64 batch size / 6 threads = 10 or 11 images per thread
+	args.n = (idx + 1) * number_of_images / number_of_threads - idx * number_of_images / number_of_threads;
+
+	while (image_data_loading_threads_must_exit == false and
+			cfg_and_state.must_immediately_exit == false)
 	{
-		while (!custom_atomic_load_int(&run_load_data[idx]))
+		/// @todo get rid of this busy-loop
+
+		// wait until the control thread tells us we can load the next set of images
+		if (data_loading_per_thread_flag[idx] == 0)
 		{
-			if (image_data_loading_threads_must_exit)
-			{
-				return;
-			}
-			this_thread_sleep_for(thread_wait_ms);
+			std::this_thread::sleep_for(thread_wait_ms);
+			continue;
 		}
 
-		load_data_mutex.lock();
+		// if we get here, then the control thread has told us to load the next image
+
+		args_swap_mutex.lock();
 		load_args args_local = args_swap[idx];
-		load_data_mutex.unlock();
+		args_swap_mutex.unlock();
 
 		Darknet::load_single_image_data(args_local);
 
-		custom_atomic_store_int(&run_load_data[idx], 0);
+		data_loading_per_thread_flag[idx] = 0;
 	}
+
+	cfg_and_state.del_thread_name();
 
 	return;
 }
+
 
 void Darknet::run_image_loading_control_thread(load_args args)
 {
@@ -1731,60 +1682,71 @@ void Darknet::run_image_loading_control_thread(load_args args)
 
 	TAT(TATPARMS);
 
+	cfg_and_state.set_thread_name("image loading control thread");
+
 	if (args.threads == 0)
 	{
 		args.threads = 1;
 	}
-	data *out = args.d;
-	int total = args.n;
+	const int number_of_threads	= args.threads;	// typically will be 6
+	const int number_of_images	= args.n;		// typically will be 64 (batch size)
 
-	data* buffers = (data*)xcalloc(args.threads, sizeof(data));
+	data * out = args.d;
+	data * buffers = (data*)xcalloc(number_of_threads, sizeof(data));
 
+	// create the secondary threads
 	if (data_loading_threads.empty())
 	{
-		std::cout << "Creating " << args.threads << " permanent CPU threads to load images and bounding boxes." << std::endl;
+		std::cout << "Creating " << number_of_threads << " permanent CPU threads to load images and bounding boxes." << std::endl;
 
-		data_loading_threads	.reserve(args.threads);
-//		data_loading_triggers	.resize(args.threads);
-//		data_loading_mutexes	.resize(args.threads);
+		data_loading_threads			.reserve(number_of_threads);
+		data_loading_per_thread_flag	.reserve(number_of_threads);
 
-		run_load_data = (volatile int *)xcalloc(args.threads, sizeof(int));
-		args_swap = (load_args *)xcalloc(args.threads, sizeof(load_args));
+		args_swap = (load_args *)xcalloc(number_of_threads, sizeof(load_args));
 
-		for (int i = 0; i < args.threads; ++i)
+		for (int idx = 0; idx < number_of_threads; ++idx)
 		{
-			data_loading_threads.emplace_back(image_loading_loop, i);
+			data_loading_per_thread_flag.push_back(0);
+			data_loading_threads.emplace_back(image_loading_loop, idx, args);
 		}
 	}
 
-	for (int i = 0; i < args.threads; ++i)
+	// tell each thread that we want more images, and where they can be stored
+	for (int idx = 0; idx < number_of_threads; ++idx)
 	{
-		args.d = buffers + i;
-		args.n = (i + 1) * total / args.threads - i * total / args.threads;
+		args.d = buffers + idx;
+		args.n = (idx + 1) * number_of_images / number_of_threads - idx * number_of_images / number_of_threads;
 
-		load_data_mutex.lock();
-		args_swap[i] = args;
-		load_data_mutex.unlock();
+		args_swap_mutex.lock();
+		args_swap[idx] = args;
+		args_swap_mutex.unlock();
 
-		custom_atomic_store_int(&run_load_data[i], 1);  // run thread
+		data_loading_per_thread_flag[idx] = 1;
 	}
-	for (int i = 0; i < args.threads; ++i)
+
+	// wait for the loading threads to be done
+	for (int idx = 0; idx < number_of_threads; ++idx)
 	{
-		while (custom_atomic_load_int(&run_load_data[i]))
+		while (image_data_loading_threads_must_exit == false and
+				cfg_and_state.must_immediately_exit == false and
+				data_loading_per_thread_flag[idx] != 0) // the loading thread will reset this flag to zero once it is ready
 		{
-			this_thread_sleep_for(thread_wait_ms); //   join
+			std::this_thread::sleep_for(thread_wait_ms);
 		}
 	}
 
-	*out = concat_datas(buffers, args.threads);
+	// process the results
+	*out = concat_datas(buffers, number_of_threads);
 	out->shallow = 0;
 
-	for (int i = 0; i < args.threads; ++i)
+	for (int idx = 0; idx < number_of_threads; ++idx)
 	{
-		buffers[i].shallow = 1;
-		Darknet::free_data(buffers[i]);
+		buffers[idx].shallow = 1;
+		Darknet::free_data(buffers[idx]);
 	}
 	free(buffers);
+
+	cfg_and_state.del_thread_name();
 
 	return;
 }
@@ -1805,7 +1767,6 @@ void Darknet::stop_image_loading_threads()
 				t.join();
 			}
 		}
-		free((void*)run_load_data);
 		free(args_swap);
 		data_loading_threads.clear();
 
@@ -2151,6 +2112,7 @@ data concat_data(data d1, data d2)
 	d.shallow = 1;
 	d.X = concat_matrix(d1.X, d2.X);
 	d.y = concat_matrix(d1.y, d2.y);
+
 	return d;
 }
 
@@ -2160,12 +2122,13 @@ data concat_datas(data *d, int n)
 
 	int i;
 	data out = {0};
-	for(i = 0; i < n; ++i)
+	for (i = 0; i < n; ++i)
 	{
 		data newdata = concat_data(d[i], out);
 		Darknet::free_data(out);
 		out = newdata;
 	}
+
 	return out;
 }
 
@@ -2367,16 +2330,12 @@ void randomize_data(data d)
 	TAT(TATPARMS);
 
 	int i;
-	for(i = d.X.rows-1; i > 0; --i)
+	for (i = d.X.rows - 1; i > 0; --i)
 	{
-		int index = random_gen()%i;
-		float *swap = d.X.vals[index];
-		d.X.vals[index] = d.X.vals[i];
-		d.X.vals[i] = swap;
+		const int index = random_gen() % i;
 
-		swap = d.y.vals[index];
-		d.y.vals[index] = d.y.vals[i];
-		d.y.vals[i] = swap;
+		std::swap(d.X.vals[index], d.X.vals[i]);
+		std::swap(d.y.vals[index], d.y.vals[i]);
 	}
 }
 

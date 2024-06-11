@@ -138,8 +138,15 @@ int get_sequence_value(network net)
 	TAT(TATPARMS);
 
 	int sequence = 1;
-	if (net.sequential_subdivisions != 0) sequence = net.subdivisions / net.sequential_subdivisions;
-	if (sequence < 1) sequence = 1;
+	if (net.sequential_subdivisions != 0)
+	{
+		sequence = net.subdivisions / net.sequential_subdivisions;
+	}
+	if (sequence < 1)
+	{
+		sequence = 1;
+	}
+
 	return sequence;
 }
 
@@ -395,25 +402,41 @@ float train_network_datum(network net, float *x, float *y)
 {
 	TAT(TATPARMS);
 
+	float error = 0.0f;
+
 #ifdef GPU
-	if(cfg_and_state.gpu_index >= 0) return train_network_datum_gpu(net, x, y);
-#endif
-	network_state state={0};
-	*net.seen += net.batch;
-	state.index = 0;
-	state.net = net;
-	state.input = x;
-	state.delta = 0;
-	state.truth = y;
-	state.train = 1;
-	forward_network(net, state);
-	backward_network(net, state);
-	float error = get_network_cost(net);
-	//if(((*net.seen)/net.batch)%net.subdivisions == 0) update_network(net);
-	if(*(state.net.total_bbox) > 0)
+	if(cfg_and_state.gpu_index >= 0)
 	{
-		printf("total_bbox=%d, rewritten_bbox=%f%%\n", *(state.net.total_bbox), 100.0f * (float)*(state.net.rewritten_bbox) / *(state.net.total_bbox));
+		error = train_network_datum_gpu(net, x, y);
 	}
+	else
+	{
+#endif
+
+		network_state state={0};
+		*net.seen += net.batch;
+		state.index = 0;
+		state.net = net;
+		state.input = x;
+		state.delta = 0;
+		state.truth = y;
+		state.train = 1;
+		forward_network(net, state);
+		backward_network(net, state);
+		error = get_network_cost(net);
+
+#ifdef GPU
+	}
+#endif
+
+	if (cfg_and_state.is_verbose and *(net.total_bbox) > 0)
+	{
+		std::cout
+			<< "total_bbox=" << *(net.total_bbox)
+			<< ", rewritten_bbox=" << 100.0f * float(*(net.rewritten_bbox)) / float(*(net.total_bbox))
+			<< "%" << std::endl;
+	}
+
 	return error;
 }
 
@@ -440,14 +463,16 @@ float train_network_sgd(network net, data d, int n)
 
 float train_network(network net, data d)
 {
+	/* no need to track this since we simply call the other train function which is already tracked
 	TAT(TATPARMS);
+	 */
 
 	return train_network_waitkey(net, d, 0);
 }
 
 float train_network_waitkey(network net, data d, int wait_key)
 {
-	TAT(TATPARMS);
+	TAT_COMMENT(TATPARMS, "complicated");
 
 	assert(d.X.rows % net.batch == 0);
 	int batch = net.batch;
@@ -457,12 +482,16 @@ float train_network_waitkey(network net, data d, int wait_key)
 
 	int i;
 	float sum = 0;
-	for(i = 0; i < n; ++i){
+	for(i = 0; i < n; ++i)
+	{
 		get_next_batch(d, batch, i*batch, X, y);
 		net.current_subdivision = i;
 		float err = train_network_datum(net, X, y);
 		sum += err;
-		if(wait_key) wait_key_cv(5);
+		if (wait_key)
+		{
+			wait_key_cv(5);
+		}
 	}
 	(*net.cur_iteration) += 1;
 #ifdef GPU
@@ -497,7 +526,6 @@ float train_network_waitkey(network net, data d, int wait_key)
 		}
 	}
 
-
 	int reject_stop_point = net.max_batches*3/4;
 
 	if ((*net.cur_iteration) < reject_stop_point &&
@@ -508,9 +536,9 @@ float train_network_waitkey(network net, data d, int wait_key)
 		reject_similar_weights(net, sim_threshold);
 	}
 
-
 	free(X);
 	free(y);
+
 	return (float)sum/(n*batch);
 }
 
@@ -527,8 +555,10 @@ float train_network_batch(network net, data d, int n)
 	state.delta = 0;
 	float sum = 0;
 	int batch = 2;
-	for(i = 0; i < n; ++i){
-		for(j = 0; j < batch; ++j){
+	for (i = 0; i < n; ++i)
+	{
+		for (j = 0; j < batch; ++j)
+		{
 			int index = random_gen()%d.X.rows;
 			state.input = d.X.vals[index];
 			state.truth = d.y.vals[index];
@@ -913,39 +943,68 @@ int num_detections_batch(network *net, float thresh, int batch)
 
 detection *make_network_boxes(network *net, float thresh, int *num)
 {
+	/// @see @ref make_network_boxes_batch()
+
 	TAT(TATPARMS);
 
-	int i;
 	layer l = net->layers[net->n - 1];
-	for (i = 0; i < net->n; ++i) {
+	for (int i = 0; i < net->n; ++i)
+	{
 		layer l_tmp = net->layers[i];
-		if (l_tmp.type == YOLO || l_tmp.type == GAUSSIAN_YOLO || l_tmp.type == DETECTION || l_tmp.type == REGION) {
+		if (l_tmp.type == YOLO || l_tmp.type == GAUSSIAN_YOLO || l_tmp.type == DETECTION || l_tmp.type == REGION)
+		{
 			l = l_tmp;
 			break;
 		}
 	}
 
 	int nboxes = num_detections(net, thresh);
-	if (num) *num = nboxes;
+	if (num)
+	{
+		*num = nboxes;
+	}
+
 	detection* dets = (detection*)xcalloc(nboxes, sizeof(detection));
-	for (i = 0; i < nboxes; ++i) {
+	for (int i = 0; i < nboxes; ++i)
+	{
 		dets[i].prob = (float*)xcalloc(l.classes, sizeof(float));
 		// tx,ty,tw,th uncertainty
-		if(l.type == GAUSSIAN_YOLO) dets[i].uc = (float*)xcalloc(4, sizeof(float)); // Gaussian_YOLOv3
-		else dets[i].uc = NULL;
+		if (l.type == GAUSSIAN_YOLO)
+		{
+			dets[i].uc = (float*)xcalloc(4, sizeof(float)); // Gaussian_YOLOv3
+		}
+		else
+		{
+			dets[i].uc = NULL;
+		}
 
-		if (l.coords > 4) dets[i].mask = (float*)xcalloc(l.coords - 4, sizeof(float));
-		else dets[i].mask = NULL;
+		if (l.coords > 4)
+		{
+			dets[i].mask = (float*)xcalloc(l.coords - 4, sizeof(float));
+		}
+		else
+		{
+			dets[i].mask = NULL;
+		}
 
-		if(l.embedding_output) dets[i].embeddings = (float*)xcalloc(l.embedding_size, sizeof(float));
-		else dets[i].embeddings = NULL;
+		if (l.embedding_output)
+		{
+			dets[i].embeddings = (float*)xcalloc(l.embedding_size, sizeof(float));
+		}
+		else
+		{
+			dets[i].embeddings = NULL;
+		}
 		dets[i].embedding_size = l.embedding_size;
 	}
+
 	return dets;
 }
 
 detection *make_network_boxes_batch(network *net, float thresh, int *num, int batch)
 {
+	/// @see @ref make_network_boxes()
+
 	TAT(TATPARMS);
 
 	int i;
@@ -961,20 +1020,41 @@ detection *make_network_boxes_batch(network *net, float thresh, int *num, int ba
 	int nboxes = num_detections_batch(net, thresh, batch);
 	assert(num != NULL);
 	*num = nboxes;
+
 	detection* dets = (detection*)calloc(nboxes, sizeof(detection));
-	for (i = 0; i < nboxes; ++i) {
+	for (i = 0; i < nboxes; ++i)
+	{
 		dets[i].prob = (float*)calloc(l.classes, sizeof(float));
 		// tx,ty,tw,th uncertainty
-		if (l.type == GAUSSIAN_YOLO) dets[i].uc = (float*)xcalloc(4, sizeof(float)); // Gaussian_YOLOv3
-		else dets[i].uc = NULL;
+		if (l.type == GAUSSIAN_YOLO)
+		{
+			dets[i].uc = (float*)xcalloc(4, sizeof(float)); // Gaussian_YOLOv3
+		}
+		else
+		{
+			dets[i].uc = NULL;
+		}
 
-		if (l.coords > 4) dets[i].mask = (float*)xcalloc(l.coords - 4, sizeof(float));
-		else dets[i].mask = NULL;
+		if (l.coords > 4)
+		{
+			dets[i].mask = (float*)xcalloc(l.coords - 4, sizeof(float));
+		}
+		else
+		{
+			dets[i].mask = NULL;
+		}
 
-		if (l.embedding_output) dets[i].embeddings = (float*)xcalloc(l.embedding_size, sizeof(float));
-		else dets[i].embeddings = NULL;
+		if (l.embedding_output)
+		{
+			dets[i].embeddings = (float*)xcalloc(l.embedding_size, sizeof(float));
+		}
+		else
+		{
+			dets[i].embeddings = NULL;
+		}
 		dets[i].embedding_size = l.embedding_size;
 	}
+
 	return dets;
 }
 

@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <execinfo.h>
 #endif
+#include <random>
 
 
 void *xmalloc_location(const size_t size, const char * const filename, const char * const funcname, const int line)
@@ -438,9 +439,18 @@ void darknet_fatal_error(const char * const filename, const char * const funcnam
 	const auto is_locked = darknet_fatal_error_mutex.try_lock_for(std::chrono::seconds(5));
 
 	// only log the message and the rest of the information if this is the first call into darknet_fatal_error()
-	if (Darknet::CfgAndState::get().must_immediately_exit == false)
+	auto & cfg_and_state = Darknet::CfgAndState::get();
+
+	if (cfg_and_state.must_immediately_exit == false)
 	{
-		Darknet::CfgAndState::get().must_immediately_exit = true;
+		cfg_and_state.must_immediately_exit = true;
+
+		decltype(cfg_and_state.thread_names) all_thread_names;
+		if (true)
+		{
+			std::scoped_lock lock(cfg_and_state.thread_names_mutex);
+			all_thread_names = cfg_and_state.thread_names;
+		}
 
 		fprintf(stderr, "\n* * * * * * * * * * * * * * * * * * * * * * * * * * * * *\n");
 
@@ -460,14 +470,27 @@ void darknet_fatal_error(const char * const filename, const char * const funcnam
 		va_end(args);
 
 		// the vfprintf() message is not newline-terminated so we need to take care of that before we print anything else
-		fprintf(stderr,
-			"%s\n"
-			"* Version %s built on %s %s\n"
-			"* * * * * * * * * * * * * * * * * * * * * * * * * * * * *\n",
-			Darknet::in_colour(Darknet::EColour::kNormal).c_str(),
-			DARKNET_VERSION_STRING, __DATE__, __TIME__);
+		fprintf(stderr, "%s\n", Darknet::in_colour(Darknet::EColour::kNormal).c_str());
+
+		std::cout
+			<< "* Thread #" << std::this_thread::get_id() << ": " << cfg_and_state.get_thread_name() << std::endl
+			<< "* Version " << DARKNET_VERSION_STRING << " built on " << __DATE__ << " " <<__TIME__ << std::endl
+			<< "* * * * * * * * * * * * * * * * * * * * * * * * * * * * *" << std::endl;
 
 		log_backtrace();
+
+		std::cout << "known threads:  " << all_thread_names.size() << std::endl;
+		size_t count = 0;
+		for (const auto & [tid, name] : all_thread_names)
+		{
+			count ++;
+			std::cout << count << "/" << all_thread_names.size() << ": #" << tid << ": " << name << std::endl;
+			if (count > 15 and all_thread_names.size() >= 20)
+			{
+				std::cout << "..." << std::endl;
+				break;
+			}
+		}
 	}
 
 	std::fflush(stdout);
@@ -1095,9 +1118,14 @@ int int_index(int *a, int val, int n)
 	TAT(TATPARMS);
 
 	int i;
-	for (i = 0; i < n; ++i) {
-		if (a[i] == val) return i;
+	for (i = 0; i < n; ++i)
+	{
+		if (a[i] == val)
+		{
+			return i;
+		}
 	}
+
 	return -1;
 }
 
@@ -1105,12 +1133,13 @@ int rand_int(int min, int max)
 {
 	TAT(TATPARMS);
 
-	if (max < min){
-		int s = min;
-		min = max;
-		max = s;
+	if (max < min)
+	{
+		std::swap(min, max);
 	}
+
 	int r = (random_gen()%(max - min + 1)) + min;
+
 	return r;
 }
 
@@ -1138,17 +1167,6 @@ float rand_normal()
 	return sqrt(rand1) * cos(rand2);
 }
 
-/*
-float rand_normal()
-{
-int n = 12;
-int i;
-float sum= 0;
-for(i = 0; i < n; ++i) sum += (float)random_gen()/RAND_MAX;
-return sum-n/2.;
-}
-*/
-
 size_t rand_size_t()
 {
 	TAT(TATPARMS);
@@ -1167,10 +1185,9 @@ float rand_uniform(float min, float max)
 {
 	TAT(TATPARMS);
 
-	if(max < min){
-		float swap = min;
-		min = max;
-		max = swap;
+	if (max < min)
+	{
+		std::swap(min, max);
 	}
 
 #if (RAND_MAX < 65536)
@@ -1205,12 +1222,29 @@ float **one_hot_encode(float *a, int n, int k)
 	return t;
 }
 
-static unsigned int x = 123456789, y = 362436069, z = 521288629;
+namespace
+{
+	inline std::mt19937 & get_rnd_engine()
+	{
+		TAT(TATPARMS);
+
+		// we must have 1 per thread of these (use random_device to seed the engine)
+		static thread_local std::mt19937 rnd_engine(std::random_device{}());
+
+		return rnd_engine;
+	}
+}
 
 // Marsaglia's xorshf96 generator: period 2^96-1
 unsigned int random_gen_fast(void)
 {
+	/// @todo Is this really faster than using the C++11 rng?  Do we gain something by keeping this?
+
 	TAT(TATPARMS);
+
+	static unsigned int x = 123456789;
+	static unsigned int y = 362436069;
+	static unsigned int z = 521288629;
 
 	unsigned int t;
 	x ^= x << 16;
@@ -1236,30 +1270,25 @@ int rand_int_fast(int min, int max)
 {
 	TAT(TATPARMS);
 
-	if (max < min) {
-		int s = min;
-		min = max;
-		max = s;
+	if (max < min)
+	{
+		std::swap(max, min);
 	}
+
 	int r = (random_gen_fast() % (max - min + 1)) + min;
+
 	return r;
 }
 
-unsigned int random_gen()
+unsigned int random_gen(unsigned int min, unsigned int max)
 {
 	TAT(TATPARMS);
 
-	unsigned int rnd = 0;
-#ifdef WIN32
-	rand_s(&rnd);
-#else   // WIN32
-	rnd = rand();
-#if (RAND_MAX < 65536)
-		rnd = rand()*(RAND_MAX + 1) + rnd;
-#endif  //(RAND_MAX < 65536)
-#endif  // WIN32
-	return rnd;
+	std::uniform_int_distribution<unsigned int> distribution(min, max);
+
+	return distribution(get_rnd_engine());
 }
+
 
 float random_float()
 {
@@ -1285,10 +1314,9 @@ float rand_uniform_strong(float min, float max)
 {
 	TAT(TATPARMS);
 
-	if (max < min) {
-		float swap = min;
-		min = max;
-		max = swap;
+	if (max < min)
+	{
+		std::swap(min, max);
 	}
 	return (random_float() * (max - min)) + min;
 }
@@ -1297,10 +1325,9 @@ float rand_precalc_random(float min, float max, float random_part)
 {
 	TAT(TATPARMS);
 
-	if (max < min) {
-		float swap = min;
-		min = max;
-		max = swap;
+	if (max < min)
+	{
+		std::swap(min, max);
 	}
 	return (random_part * (max - min)) + min;
 }

@@ -55,10 +55,10 @@ namespace Darknet
 
 			TimingRecords & add(const TimingAndTracking & tat);
 
-			std::map<std::string, size_t>		min_elapsed_time_per_function;
-			std::map<std::string, size_t>		max_elapsed_time_per_function;
-			std::map<std::string, size_t>		total_elapsed_time_per_function;
-			std::map<std::string, size_t>		number_of_calls_per_function;
+			std::map<std::string, uint64_t>		min_elapsed_time_per_function;		///< in nanoseconds
+			std::map<std::string, uint64_t>		max_elapsed_time_per_function;		///< in nanoseconds
+			std::map<std::string, uint64_t>		total_elapsed_time_per_function;	///< in nanoseconds
+			std::map<std::string, uint64_t>		number_of_calls_per_function;
 			std::map<std::string, bool>			reviewed_per_function;
 			std::map<std::string, std::string>	comment_per_function;
 	};
@@ -66,18 +66,26 @@ namespace Darknet
 
 #ifdef DARKNET_TIMING_AND_TRACKING_ENABLED
 
-/// Create a @ref Darknet::TimingAndTracking object on the stack to generate some information allowing us to debug which parts of the code takes a long time to run.
-#define TAT(n) Darknet::TimingAndTracking tat(n)
+	/// Create a @ref Darknet::TimingAndTracking object on the stack to generate some information allowing us to debug which parts of the code takes a long time to run.
+	#define TAT(n) Darknet::TimingAndTracking tat(n)
 
-/// Similar to @ref TAT() but indicate this function or method was reviewed, as well as the date when it was last reviewed.
-#define TAT_REVIEWED(n, d) Darknet::TimingAndTracking tat(n, true, d)
+	/// Similar to @ref TAT() but indicate this function or method was reviewed, as well as the date when it was last reviewed.
+	#define TAT_REVIEWED(n, d) Darknet::TimingAndTracking tat(n, true, d)
 
-#define TATPARMS __PRETTY_FUNCTION__
+	/// Similar to @ref TAT() but with a comment.
+	#define TAT_COMMENT(n, c) Darknet::TimingAndTracking tat(n, false, c)
+
+	#ifdef WIN32
+		#define TATPARMS __FUNCTION__
+	#else
+		#define TATPARMS __PRETTY_FUNCTION__
+	#endif
 
 #else
 
-#define TAT(...)
-#define TAT_REVIEWED(...)
-#define TATPARMS ""
+	#define TAT(...)
+	#define TAT_REVIEWED(...)
+	#define TAT_COMMENT(...)
+	#define TATPARMS ""
 
 #endif

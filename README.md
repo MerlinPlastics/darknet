@@ -163,7 +163,6 @@ At this point we need to modify the Visual Studio installation to include suppor
 * click on `Modify`
 * select `Desktop Development With C++`
 * click on `Modify` in the bottom-right corner, and then click on `Yes`
-
 Once everything is downloaded and installed, click on the "Windows Start" menu again and select `Developer Command Prompt for VS 2022`.  **Do not** use PowerShell for these steps, you will run into problems!
 
 > Advanced users:
@@ -194,6 +193,7 @@ Be patient at this last step as it can take a long time to run.  It needs to dow
 	* Visit <https://developer.nvidia.com/cuda-downloads> to download and install CUDA.
 	* Visit <https://developer.nvidia.com/rdp/cudnn-download> or <https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html#download-windows> to download and install cuDNN.
 	* Once you install CUDA make sure you can run `nvcc` and `nvidia-smi`.  You may have to modify your `PATH` variable.
+	* Once you download cuDNN, unzip and copy the bin, include, and lib directories into `C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/[version]/`.  You may need to overwrite some files.
 	* If you install CUDA or CUDA+cuDNN at a later time, or you upgrade to a newer version of the NVIDIA software:
 		* You must delete the `CMakeCache.txt` file from your Darknet `build` directory to force CMake to re-find all of the necessary files.
 		* Remember to re-build Darknet.
@@ -212,14 +212,12 @@ msbuild.exe /property:Platform=x64;Configuration=Release /target:Build -maxCpuCo
 msbuild.exe /property:Platform=x64;Configuration=Release PACKAGE.vcxproj
 ```
 
-If you get an error about some missing CUDA DLLs such as `cublas64_12.dll`, then manually copy the CUDA `.dll` files into the same output directory as `Darknet.exe`.  For example:
+If you get an error about some missing CUDA or cuDNN DLLs such as `cublas64_12.dll`, then manually copy the CUDA `.dll` files into the same output directory as `Darknet.exe`.  For example:
 ```bat
 copy "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.2\bin\*.dll" src-cli\Release\
 ```
-Similarly, if you get an error about CUDNN, then manually copy the CUDNN `.dll` file into the same output directory.  For example:
-```bat
-copy "C:\Program Files\NVIDIA\CUDNN\v8.x\bin\cudnn64_8.dll" src-cli\Release\
-```
+(That is an example!  Check to make sure what version you are running, and run the command that is appropriate for what you have installed.)
+
 Once the files have been copied, re-run the last `msbuild.exe` command to generate the NSIS installation package:
 ```bat
 msbuild.exe /property:Platform=x64;Configuration=Release PACKAGE.vcxproj
@@ -351,6 +349,12 @@ darknet detector -map -dont_show train animals.data animals.cfg
 
 Be patient.  The best weights will be saved as `animals_best.weights`.  And the progress of training can be observed by viewing the `chart.png` file.  See [the Darknet/YOLO FAQ](https://www.ccoderun.ca/programming/yolo_faq/#training_command) for additional parameters you may want to use when training a new network.
 
+If you want to see more details during training, add the `--verbose` parameter.  For example:
+
+```sh
+darknet detector -map -dont_show --verbose train animals.data animals.cfg
+```
+
 # Other Tools and Links
 
 * To manage your Darknet/YOLO projects, annotate images, verify your annotations, and generate the necessary files to train with Darknet, [see DarkMark](https://github.com/stephanecharette/DarkMark).
@@ -361,18 +365,15 @@ Be patient.  The best weights will be saved as `animals_best.weights`.  And the 
 
 # Roadmap
 
-Last updated 2024-02-12:
+Last updated 2024-05-13:
 
-## Short-term goals
+## Completed
 
-* [ ] swap out qsort() for std::sort()
-* [ ] get rid of check_mistakes and calls to getchar()
+* [X] swap out qsort() for std::sort() where used during training (some other obscure ones remain)
+* [X] get rid of check_mistakes, getchar(), and system()
 * [X] convert Darknet to use the C++ compiler (g++ on Linux, VisualStudio on Windows)
 * [X] fix Windows build
-* [ ] fix ARM build (Jetson devices)
 * [X] fix Python support
-* [ ] clean up .hpp files
-* [ ] re-write darknet.h
 * [X] build darknet library
 * [X] re-enable labels on predictions ("alphabet" code)
 * [X] re-enable CUDA/GPU code
@@ -381,10 +382,8 @@ Last updated 2024-02-12:
 * [X] do not hard-code the CUDA architecture
 * [X] better CUDA version information
 * [X] re-enable AVX
-* [ ] look into old zed camera support
 * [X] remove old solutions and Makefile
 * [X] make OpenCV non-optional
-* [ ] better and more consistent command line parsing
 * [X] remove dependency on the old pthread library
 * [X] remove STB
 * [X] re-write CMakeLists.txt to use the new CUDA detection
@@ -392,8 +391,17 @@ Last updated 2024-02-12:
 * [X] build out-of-source
 * [X] have better version number output
 
+## Short-term goals
+
+* [ ] swap out printf() for std::cout (in progress)
+* [ ] clean up .hpp files
+* [ ] re-write darknet.h
+* [ ] look into old zed camera support
+* [ ] better and more consistent command line parsing
+
 ## Mid-term goals
 
+* [ ] fix build for ARM-based Jetson devices
 * [ ] better use of `cv::Mat` instead of the custom `image` structure in C
 * [ ] do not cast `cv::Mat` to `void*` but use it as a proper C++ object
 * [ ] completely remove internal/obsolete `image` structure
@@ -406,4 +414,3 @@ Last updated 2024-02-12:
 * [ ] fix CUDA/CUDNN issues with all GPUs
 * [ ] look into adding support for non-NVIDIA GPUs
 * [ ] rotated bounding boxes, or some sort of "angle" support
-

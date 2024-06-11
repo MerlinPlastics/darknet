@@ -11,7 +11,7 @@ IF (CMAKE_CUDA_COMPILER)
 	FIND_PACKAGE(CUDAToolkit)
 	INCLUDE_DIRECTORIES (${CUDAToolkit_INCLUDE_DIRS})
 	ADD_COMPILE_DEFINITIONS (GPU) # TODO rename this to DARKNET_USE_GPU or DARKNET_USE_CUDA?
-	SET (CMAKE_CUDA_STANDARD 14)
+	SET (CMAKE_CUDA_STANDARD 17)
 	SET (CMAKE_CUDA_STANDARD_REQUIRED ON)
 	#
 	# Best to use "native" as the architecture, as this will use whatever GPU is installed.
@@ -52,39 +52,24 @@ ENDIF ()
 # == cuDNN ==
 # ===========
 IF (DARKNET_USE_CUDA)
-	IF (WIN32)
-		# If installed according to the NVIDIA instructions, CUDNN should look like this:
-		#		C:\Program Files\NVIDIA\CUDNN\v8.x\...
-		# The .dll is named:
-		#		C:\Program Files\NVIDIA\CUDNN\v8.x\bin\cudnn64_8.dll
-		# And the header should look like:
-		#		C:\Program Files\NVIDIA\CUDNN\v8.x\include\cudnn.h
-		#
-		SET (CUDNN_DIR "C:/Program Files/NVIDIA/CUDNN/v8.x")
-		SET (CUDNN_DLL "${CUDNN_DIR}/bin/cudnn64_8.dll")
-		SET (CUDNN_LIB "${CUDNN_DIR}/lib/x64/cudnn.lib")
-		SET (CUDNN_HEADER "${CUDNN_DIR}/include/cudnn.h")
-		IF (EXISTS ${CUDNN_DLL} AND EXISTS ${CUDNN_LIB} AND EXISTS ${CUDNN_HEADER})
-			MESSAGE (STATUS "cuDNN found at ${CUDNN_DIR}")
-			INCLUDE_DIRECTORIES (${CUDNN_DIR}/include/)
+		# Look for cudnn, we will look in the same place as other CUDA libraries and also a few other places as well.
+		FIND_PATH(cudnn_include cudnn.h
+					HINTS ${CUDA_INCLUDE_DIRS} ENV CUDNN_INCLUDE_DIR ENV CUDA_PATH ENV CUDNN_HOME
+					PATHS /usr/local /usr/local/cuda ENV CPATH
+					PATH_SUFFIXES include)
+		GET_FILENAME_COMPONENT(cudnn_hint_path "${CUDA_CUBLAS_LIBRARIES}" PATH)
+		FIND_LIBRARY(cudnn cudnn
+					HINTS ${cudnn_hint_path} ENV CUDNN_LIBRARY_DIR ENV CUDA_PATH ENV CUDNN_HOME
+					PATHS /usr/local /usr/local/cuda ENV LD_LIBRARY_PATH
+					PATH_SUFFIXES lib64 lib/x64 lib x64)
+		IF (cudnn AND cudnn_include)
+			MESSAGE(STATUS "Found cuDNN: " ${cudnn})
 			ADD_COMPILE_DEFINITIONS (CUDNN) # TODO this needs to be renamed
 			ADD_COMPILE_DEFINITIONS (CUDNN_HALF)
-			SET (DARKNET_LINK_LIBS ${DARKNET_LINK_LIBS} ${CUDNN_LIB})
+			SET (DARKNET_LINK_LIBS ${DARKNET_LINK_LIBS} ${cudnn})
 		ELSE ()
-			MESSAGE (WARNING "Did not find cuDNN at ${CUDNN_DIR}")
+			MESSAGE (WARNING "cuDNN not found.")
 		ENDIF ()
-	ELSE ()
-		# Should be slightly easier to deal with on Linux if it was installed correctly.
-		FIND_LIBRARY (CUDNN cudnn OPTIONAL QUIET)
-		IF (NOT CUDNN)
-			MESSAGE (STATUS "Skipping cuDNN")
-		ELSE ()
-			MESSAGE (STATUS "Enabling cuDNN")
-			ADD_COMPILE_DEFINITIONS (CUDNN) # TODO this needs to be renamed
-			ADD_COMPILE_DEFINITIONS (CUDNN_HALF)
-			SET (DARKNET_LINK_LIBS ${DARKNET_LINK_LIBS} ${CUDNN})
-		ENDIF ()
-	ENDIF ()
 ENDIF ()
 
 
@@ -113,16 +98,22 @@ ELSE ()
 ENDIF ()
 
 
+# ====================
+# == GCC/Clang/MSCV ==
+# ====================
+IF (COMPILER_IS_GNU_OR_CLANG OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
+    SET (COMPILER_IS_GNU_OR_CLANG_OR_MSVC TRUE)
+ELSE ()
+	SET (COMPILER_IS_GNU_OR_CLANG_OR_MSVC FALSE)
+ENDIF ()
+
+
 # =============
 # == Threads ==
 # =============
 FIND_PACKAGE (Threads REQUIRED)
 MESSAGE (STATUS "Found Threads ${Threads_VERSION}")
 SET (DARKNET_LINK_LIBS ${DARKNET_LINK_LIBS} Threads::Threads)
-IF (WIN32)
-	FIND_PACKAGE (PThreads4W REQUIRED)
-	SET (DARKNET_LINK_LIBS ${DARKNET_LINK_LIBS} PThreads4W::PThreads4W)
-ENDIF ()
 
 
 # ============
@@ -153,19 +144,24 @@ ENDIF ()
 # ===============
 # == AVX & SSE ==
 # ===============
-CMAKE_DEPENDENT_OPTION (ENABLE_SSE_AND_AVX "Enable AVX and SSE optimizations (Intel and AMD only)" ON "COMPILER_IS_GNU_OR_CLANG;HARDWARE_IS_X86" OFF)
+CMAKE_DEPENDENT_OPTION (ENABLE_SSE_AND_AVX "Enable AVX and SSE optimizations (Intel and AMD only)" ON "COMPILER_IS_GNU_OR_CLANG_OR_MSVC;HARDWARE_IS_X86" OFF)
 IF (NOT ENABLE_SSE_AND_AVX)
 	MESSAGE (WARNING "AVX and SSE optimizations are disabled.")
 ELSE ()
 	MESSAGE (STATUS "Enabling AVX and SSE optimizations.")
-	ADD_COMPILE_OPTIONS(-ffp-contract=fast)
-	ADD_COMPILE_OPTIONS(-mavx)
-	ADD_COMPILE_OPTIONS(-mavx2)
-	ADD_COMPILE_OPTIONS(-msse3)
-	ADD_COMPILE_OPTIONS(-msse4.1)
-	ADD_COMPILE_OPTIONS(-msse4.2)
-	ADD_COMPILE_OPTIONS(-msse4a)
+	IF (COMPILER_IS_GNU_OR_CLANG)
+		ADD_COMPILE_OPTIONS(-ffp-contract=fast)
+		ADD_COMPILE_OPTIONS(-mavx)
+		ADD_COMPILE_OPTIONS(-mavx2)
+		ADD_COMPILE_OPTIONS(-msse3)
+		ADD_COMPILE_OPTIONS(-msse4.1)
+		ADD_COMPILE_OPTIONS(-msse4.2)
+		ADD_COMPILE_OPTIONS(-msse4a)
+	ELSE ()
+		SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2")
+	ENDIF()
 ENDIF ()
+
 
 # ============
 # == Timing ==

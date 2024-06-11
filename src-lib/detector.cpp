@@ -18,10 +18,6 @@ typedef __compar_fn_t comparison_fn_t;
 #endif
 #endif
 
-#include "http_stream.hpp"
-
-int check_mistakes = 0;
-
 namespace
 {
 	static auto & cfg_and_state = Darknet::CfgAndState::get();
@@ -32,6 +28,12 @@ static int coco_ids[] = { 1,2,3,4,5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,
 void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, int ngpus, int clear, int dont_show, int calc_map, float thresh, float iou_thresh, int mjpeg_port, int show_imgs, int benchmark_layers, char* chart_path)
 {
 	TAT(TATPARMS);
+
+	#ifndef GPU
+	// If you know what you are doing, you can comment out this next line.
+	// But if you know what you are doing, then I'm guessing you'll also have access to a decent GPU.
+	darknet_fatal_error(DARKNET_LOC, "An attempt was made to start training without a GPU.  Please see the FAQ.");
+	#endif
 
 //	const std::filesystem::path & datacfg		= cfg_and_state.data_filename;
 //	const std::filesystem::path & cfgfile		= cfg_and_state.cfg_filename;
@@ -77,18 +79,14 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 		free_ptrs((void**)names, net_map.layers[net_map.n - 1].classes);
 	}
 
-	srand(time(0));
 	char *base = basecfg(cfgfile);
 
 	float avg_loss = -1.0f;
 	float avg_contrastive_acc = 0.0f;
 	network* nets = (network*)xcalloc(ngpus, sizeof(network));
 
-	srand(time(0)); /// @todo
-	int seed = rand();
 	for (int k = 0; k < ngpus; ++k)
 	{
-		srand(seed); /// @todo
 #ifdef GPU
 		cuda_set_device(gpus[k]);
 #endif
@@ -105,7 +103,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 		}
 		nets[k].learning_rate *= ngpus;
 	}
-	srand(time(0));	/// @todo why again?
+
 	network net = nets[0];
 
 	const int actual_batch_size = net.batch * net.subdivisions;
@@ -120,7 +118,8 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 
 	int imgs = net.batch * net.subdivisions * ngpus;
 	printf("Learning Rate: %g, Momentum: %g, Decay: %g\n", net.learning_rate, net.momentum, net.decay);
-	data train, buffer;
+	data train;
+	data buffer;
 
 	layer l = net.layers[net.n - 1];
 	for (int k = 0; k < net.n; ++k)
@@ -172,8 +171,8 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 	net.num_boxes = args.num_boxes;
 	net.train_images_num = train_images_num;
 	args.d = &buffer;
-	args.type = DETECTION_DATA;
-	args.threads = 64;    // 16 or 64
+	args.type = DETECTION_DATA; // this is the only place in the code where this type is used
+	args.threads = 64;    // 16 or 64 -- see several lines below where this is set to 6 * GPUs
 
 	args.angle = net.angle;
 	args.gaussian_noise = net.gaussian_noise;
@@ -198,17 +197,26 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 	// This is where we draw the initial blank chart.  That chart is then updated by update_train_loss_chart() at every iteration.
 	Darknet::initialize_new_charts(net.max_batches, net.max_chart_loss);
 
-	if (net.contrastive && args.threads > net.batch/2) args.threads = net.batch / 2;
+	if (net.contrastive && args.threads > net.batch/2)
+	{
+		args.threads = net.batch / 2;
+	}
+
 	if (net.track)
 	{
 		args.track = net.track;
 		args.augment_speed = net.augment_speed;
-		if (net.sequential_subdivisions) args.threads = net.sequential_subdivisions * ngpus;
-		else args.threads = net.subdivisions * ngpus;
+		if (net.sequential_subdivisions)
+		{
+			args.threads = net.sequential_subdivisions * ngpus;
+		}
+		else
+		{
+			args.threads = net.subdivisions * ngpus;
+		}
 		args.mini_batch = net.batch / net.time_steps;
 		printf("\n Tracking! batch = %d, subdiv = %d, time_steps = %d, mini_batch = %d \n", net.batch, net.subdivisions, net.time_steps, args.mini_batch);
 	}
-	//printf(" imgs = %d \n", imgs);
 
 	std::thread load_thread = std::thread(Darknet::run_image_loading_control_thread, args);
 
@@ -226,21 +234,29 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 		std::cout << std::endl;
 		errno = 0;
 
+		// yolov3-tiny, yolov3-tiny-3l, yolov3, and yolov4 all use "random=1"
+		// yolov4-tiny and yolov4-tiny-3l both use "random=0"
 		if (l.random && count++ % 10 == 0)
 		{
 			float rand_coef = 1.4;
-			if (l.random != 1.0) rand_coef = l.random;
+			if (l.random != 1.0)
+			{
+				rand_coef = l.random;
+			}
 			printf("Resizing, random_coef = %.2f \n", rand_coef);
 			float random_val = rand_scale(rand_coef);    // *x or /x
 			int dim_w = roundl(random_val*init_w / net.resize_step + 1) * net.resize_step;
 			int dim_h = roundl(random_val*init_h / net.resize_step + 1) * net.resize_step;
-			if (random_val < 1 && (dim_w > init_w || dim_h > init_h)) dim_w = init_w, dim_h = init_h;
+			if (random_val < 1 && (dim_w > init_w || dim_h > init_h))
+			{
+				dim_w = init_w, dim_h = init_h;
+			}
 
 			int max_dim_w = roundl(rand_coef*init_w / net.resize_step + 1) * net.resize_step;
 			int max_dim_h = roundl(rand_coef*init_h / net.resize_step + 1) * net.resize_step;
 
 			// at the beginning (check if enough memory) and at the end (calc rolling mean/variance)
-			if (avg_loss < 0 || get_current_iteration(net) > net.max_batches - 100)
+			if (avg_loss < 0.0f || get_current_iteration(net) > net.max_batches - 100)
 			{
 				dim_w = max_dim_w;
 				dim_h = max_dim_h;
@@ -288,7 +304,8 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 				resize_network(nets + k, dim_w, dim_h);
 			}
 			net = nets[0];
-		}
+		} // random=1
+
 		double time = what_time_is_it_now();
 		load_thread.join();
 		train = buffer;
@@ -301,10 +318,13 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 		load_thread = std::thread(Darknet::run_image_loading_control_thread, args);
 
 		const double load_time = (what_time_is_it_now() - time);
-		Darknet::display_loaded_images(args.n, load_time); // "loaded %d images in %s\n"
-		if (load_time > 0.1 && avg_loss > 0)
+		if (cfg_and_state.is_verbose)
 		{
-			Darknet::display_warning_msg("Performance bottleneck detected.  Slow CPU or hard drive?\n");
+			std::cout << "loaded " << args.n << " images in " << Darknet::format_time(load_time) << std::endl;
+		}
+		if (load_time > 0.1 && avg_loss > 0.0f)
+		{
+			Darknet::display_warning_msg("Performance bottleneck detected.  Slow CPU or hard drive?  Loading images from a network share?\n");
 		}
 
 		time = what_time_is_it_now();
@@ -322,8 +342,11 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 #else
 		loss = train_network(net, train);
 #endif
-		if (avg_loss < 0 || avg_loss != avg_loss) avg_loss = loss;    // if(-inf or nan)
-		avg_loss = avg_loss*.9 + loss*.1;
+		if (avg_loss < 0.0f || avg_loss != avg_loss)
+		{
+			avg_loss = loss;    // if(-inf or nan)
+		}
+		avg_loss = avg_loss * 0.9f + loss * 0.1f;
 
 		const int iteration = get_current_iteration(net);
 
@@ -332,10 +355,13 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 		if (calc_map)
 		{
 			std::cout << "-> next mAP calculation will be at iteration #" << next_map_calc << std::endl;
-			if (mean_average_precision > 0)
+			if (mean_average_precision > 0.0f)
 			{
-				// "-> last accuracy mAP@0.50=42.67%, best=78.32%"
-				Darknet::display_last_accuracy(iou_thresh, mean_average_precision, best_map);
+				std::cout
+					<< "-> last accuracy mAP@" << std::setprecision(2) << iou_thresh
+					<< "="			<< Darknet::format_map_accuracy(mean_average_precision)
+					<< ", best="	<< Darknet::format_map_accuracy(best_map)
+					<< std::endl;
 			}
 		}
 
@@ -345,18 +371,49 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 		const float iters_per_second	= current_iter / elapsed_seconds;
 		const float seconds_remaining	= (net.max_batches - current_iter) / iters_per_second;
 
-		Darknet::update_console_title(iteration, net.max_batches, loss, mean_average_precision, best_map, /* avg_time_in_hours * 60 * 60 */ seconds_remaining);
-
-		if (net.cudnn_half)
+		// updating the console titlebar requires some ANSI/VT100 escape codes, so only do this if colour is also enabled
+		if (cfg_and_state.colour_is_enabled)
 		{
-			if (iteration < net.burn_in * 3)
+			if (std::isfinite(mean_average_precision) && mean_average_precision > 0.0f)
 			{
-				std::cout << "Tensor Cores are disabled until iteration #" << (3 * net.burn_in) << "." << std::endl;
+				std::cout
+					<< "\033]2;"
+					<< iteration << "/" << net.max_batches
+					<< ": loss=" << std::setprecision(1) << loss
+					<< " map=" << std::setprecision(2) << mean_average_precision
+					<< " best=" << std::setprecision(2) << best_map
+					<< " time=" << Darknet::format_time_remaining(seconds_remaining)
+					<< "\007";
+			}
+			else
+			{
+				std::cout
+					<< "\033]2;"
+					<< iteration << "/" << net.max_batches
+					<< ": loss=" << std::setprecision(1) << loss
+					<< " time=" << Darknet::format_time_remaining(seconds_remaining)
+					<< "\007";
 			}
 		}
 
+		if (cfg_and_state.is_verbose	and
+			net.cudnn_half				and
+			iteration < net.burn_in * 3)
+		{
+			std::cout << "Tensor cores are disabled until iteration #" << (3 * net.burn_in) << "." << std::endl;
+		}
+
 		// 5989: loss=0.444, avg loss=0.329, rate=0.000026, 64.424 milliseconds, 383296 images, time remaining=7 seconds
-		Darknet::display_iteration_summary(iteration, loss, avg_loss, get_current_rate(net), (what_time_is_it_now() - time), iteration * imgs, /* avg_time_in_hours * 60 * 60 */ seconds_remaining);
+		std::cout
+			<< Darknet::in_colour(Darknet::EColour::kBrightWhite, iteration)
+			<< ": loss=" << Darknet::format_loss(loss)
+			<< ", avg loss=" << Darknet::format_loss(avg_loss)
+			<< ", rate=" << std::setprecision(8) << get_current_rate(net) << std::setprecision(2)
+			<< ", " << Darknet::format_time(what_time_is_it_now() - time)
+			<< ", " << iteration * imgs
+			<< " images, time remaining="
+			<< Darknet::format_time_remaining(seconds_remaining)
+			<< std::endl;
 
 		// This is where we decide if we have to do the mAP% calculations.
 		if (calc_map && (iteration >= next_map_calc || iteration == net.max_batches))
@@ -454,7 +511,8 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 			sprintf(buff, "%s/%s_last.weights", backup_directory, base);
 			save_weights(net, buff);
 
-			if (net.ema_alpha && is_ema_initialized(net)) {
+			if (net.ema_alpha && is_ema_initialized(net))
+			{
 				sprintf(buff, "%s/%s_ema.weights", backup_directory, base);
 				save_weights_upto(net, buff, net.n, 1);
 				printf(" EMA weights are saved to the file: %s \n", buff);
@@ -465,7 +523,10 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 	} // end of training loop
 
 #ifdef GPU
-	if (ngpus != 1) sync_nets(nets, ngpus, 0);
+	if (ngpus != 1)
+	{
+		sync_nets(nets, ngpus, 0);
+	}
 #endif
 	char buff[256];
 	sprintf(buff, "%s/%s_final.weights", backup_directory, base);
@@ -725,7 +786,6 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 	fuse_conv_batchnorm(net);
 	calculate_binary_weights(net);
 	fprintf(stderr, "Learning Rate: %g, Momentum: %g, Decay: %g\n", net.learning_rate, net.momentum, net.decay);
-	srand(time(0));
 
 	list *plist = get_paths(valid_images);
 	char **paths = (char **)list_to_array(plist);
@@ -826,6 +886,7 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 		args.im = &buf[t];
 		args.resized = &buf_resized[t];
 		thr.emplace_back(Darknet::load_single_image_data, args);
+		cfg_and_state.set_thread_name(thr.back(), "validate loading thread #" + std::to_string(t));
 	}
 	time_t start = time(0);
 	for (i = nthreads; i < m + nthreads; i += nthreads)
@@ -834,6 +895,7 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 		for (t = 0; t < nthreads && i + t - nthreads < m; ++t)
 		{
 			thr[t].join();
+			cfg_and_state.del_thread_name(thr[t]);
 			val[t] = buf[t];
 			val_resized[t] = buf_resized[t];
 		}
@@ -843,6 +905,7 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 			args.im = &buf[t];
 			args.resized = &buf_resized[t];
 			thr[t] = std::thread(Darknet::load_single_image_data, args);
+			cfg_and_state.set_thread_name(thr.back(), "validate loading thread #" + std::to_string(t));
 		}
 		for (t = 0; t < nthreads && i + t - nthreads < m; ++t)
 		{
@@ -856,8 +919,14 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 			detection *dets = get_network_boxes(&net, w, h, thresh, .5, map, 0, &nboxes, letter_box);
 			if (nms)
 			{
-				if (l.nms_kind == DEFAULT_NMS) do_nms_sort(dets, nboxes, l.classes, nms);
-				else diounms_sort(dets, nboxes, l.classes, nms, l.nms_kind, l.beta_nms);
+				if (l.nms_kind == DEFAULT_NMS)
+				{
+					do_nms_sort(dets, nboxes, l.classes, nms);
+				}
+				else
+				{
+					diounms_sort(dets, nboxes, l.classes, nms, l.nms_kind, l.beta_nms);
+				}
 			}
 
 			if (coco)
@@ -883,13 +952,17 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 			free_image(val_resized[t]);
 		}
 	}
-	if (fps) {
-		for (j = 0; j < classes; ++j) {
+	if (fps)
+	{
+		for (j = 0; j < classes; ++j)
+		{
 			fclose(fps[j]);
 		}
 		free(fps);
 	}
-	if (coco) {
+
+	if (coco)
+	{
 #ifdef WIN32
 		fseek(fp, -3, SEEK_CUR);
 #else
@@ -898,7 +971,8 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 		fprintf(fp, "\n]\n");
 	}
 
-	if (bdd) {
+	if (bdd)
+	{
 #ifdef WIN32
 		fseek(fp, -3, SEEK_CUR);
 #else
@@ -927,7 +1001,6 @@ void validate_detector_recall(char *datacfg, char *cfgfile, char *weightfile)
 	}
 	//set_batch_network(&net, 1);
 	fuse_conv_batchnorm(net);
-	srand(time(0));
 
 	//list *plist = get_paths("data/coco_val_5k.list");
 	list *options = read_data_cfg(datacfg);
@@ -996,32 +1069,24 @@ void validate_detector_recall(char *datacfg, char *cfgfile, char *weightfile)
 	}
 }
 
-typedef struct {
-	box b;
-	float p;
-	int class_id;
-	int image_index;
-	int truth_flag;
-	int unique_truth_index;
-} box_prob;
-
-int detections_comparator(const void *pa, const void *pb)
-{
-	TAT(TATPARMS);
-
-	/// @todo inline this with std::sort() to simplify things...also check to see where else code like this exists, I think there are several qsorts with this functionality
-
-	box_prob a = *(const box_prob *)pa;
-	box_prob b = *(const box_prob *)pb;
-	float diff = a.p - b.p;
-	if (diff < 0) return 1;
-	else if (diff > 0) return -1;
-	return 0;
-}
 
 float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float thresh_calc_avg_iou, const float iou_thresh, const int map_points, int letter_box, network *existing_net)
 {
+	// Example command that calls this function:
+	//
+	//			darknet detector map cars.data cars.cfg cars_best.weights
+
 	TAT(TATPARMS);
+
+	struct box_prob
+	{
+		box b;					// bounding box
+		float p;				// probability
+		int class_id;
+		int image_index;		// ?
+		int truth_flag;			// ?
+		int unique_truth_index;	// ?
+	};
 
 	int j;
 	list *options = read_data_cfg(datacfg);
@@ -1060,7 +1125,7 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 	{
 		darknet_fatal_error(DARKNET_LOC, "in the file %s number of names %d is not equal to classes=%d in the file %s", name_list, names_size, net.layers[net.n - 1].classes, cfgfile);
 	}
-	srand(time(0)); /// @todo Why are we doing this here?  every time we do the mAP% calculation?
+
 	printf("\n calculating mAP (mean average precision)...\n");
 
 	list *plist = get_paths(valid_images);
@@ -1141,17 +1206,19 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 		args.im = &buf[t];
 		args.resized = &buf_resized[t];
 		thr.emplace_back(Darknet::load_single_image_data, args);
+		cfg_and_state.set_thread_name(thr.back(), "map loading thread #" + std::to_string(t));
 	}
-	time_t start = time(0);
+	time_t start = std::time(nullptr);
 	for (int i = nthreads; i < number_of_validation_images + nthreads; i += nthreads)
 	{
-		const int percentage = roundl(100.0 * (i - nthreads) / number_of_validation_images);
-		printf("\rprocessing #%d (%d%%)", (i - nthreads), percentage);
+		const int percentage = std::round(100.0f * (i - nthreads) / number_of_validation_images);
+		std::cout << "\rprocessing #" << (i - nthreads) << " (" << percentage << "%) " << std::flush;
 
 		// wait until the 4 threads have finished loading in their image
 		for (int t = 0; t < nthreads && (i + t - nthreads) < number_of_validation_images; ++t)
 		{
 			thr[t].join();
+			cfg_and_state.del_thread_name(thr[t]);
 			val[t] = buf[t];
 			val_resized[t] = buf_resized[t];
 		}
@@ -1162,6 +1229,7 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 			args.im = &buf[t];
 			args.resized = &buf_resized[t];
 			thr[t] = std::thread(Darknet::load_single_image_data, args);
+			cfg_and_state.set_thread_name(thr[t], "map loading thread #" + std::to_string(t));
 		}
 
 		for (int t = 0; t < nthreads && i + t - nthreads < number_of_validation_images; ++t)
@@ -1344,16 +1412,35 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 		}
 	}
 
-	// SORT(detections)
-	/// @todo replace qsort() highest priority
-	qsort(detections, detections_count, sizeof(box_prob), detections_comparator);
+	// Sort the array from high probability to low probability.
+	//
+	// With a test of 7125 entries in the array:
+	//
+	// - qsort() with function took:	576286 nanoseconds
+	// - std::sort() with lambda took:	414231 nanoseconds
+	//
+	std::sort(detections, detections + detections_count,
+			[](const box_prob & lhs, const box_prob & rhs)
+			{
+				const auto diff = lhs.p - rhs.p;
 
-	typedef struct {
+				if (diff < 0.0f)
+				{
+					return false;
+				}
+
+				return true;
+			});
+
+	struct pr_t
+	{
 		double prob;
 		double precision;
 		double recall;
-		int tp, fp, fn;
-	} pr_t;
+		int tp;
+		int fp;
+		int fn;
+	};
 
 	// for PR-curve
 	// Note this is a pointer-to-a-pointer.  We don't have just 1 of these per class, but these exist for every detections_count.
@@ -1683,7 +1770,6 @@ void calc_anchors(char *datacfg, int num_of_clusters, int width, int height, int
 	int classes = option_find_int(options, "classes", 1);
 	int* counter_per_class = (int*)xcalloc(classes, sizeof(int));
 
-	srand(time(0));
 	int number_of_boxes = 0;
 	printf(" read labels from %d images \n", number_of_images);
 
@@ -1702,14 +1788,11 @@ void calc_anchors(char *datacfg, int num_of_clusters, int width, int height, int
 			if (truth[j].x > 1 || truth[j].x <= 0 || truth[j].y > 1 || truth[j].y <= 0 ||
 				truth[j].w > 1 || truth[j].w <= 0 || truth[j].h > 1 || truth[j].h <= 0)
 			{
-				printf("\n\nWrong label: %s - j = %d, x = %f, y = %f, width = %f, height = %f \n",
-					labelpath, j, truth[j].x, truth[j].y, truth[j].w, truth[j].h);
-				sprintf(buff, "echo \"Wrong label: %s - j = %d, x = %f, y = %f, width = %f, height = %f\" >> bad_label.list",
-					labelpath, j, truth[j].x, truth[j].y, truth[j].w, truth[j].h);
-				system(buff);
-				if (check_mistakes) getchar();
+				darknet_fatal_error(DARKNET_LOC, "invalid annotation coordinates or size for class #%d in %s", truth[j].id, labelpath);
 			}
-			if (truth[j].id >= classes) {
+
+			if (truth[j].id >= classes)
+			{
 				classes = truth[j].id + 1;
 				counter_per_class = (int*)xrealloc(counter_per_class, classes * sizeof(int));
 			}
@@ -1868,7 +1951,7 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
 			darknet_fatal_error(DARKNET_LOC, "number of names and classes do not match");
 		}
 	}
-	srand(2222222); /// @todo Why is this being done this way here?
+
 	char buff[256];
 	char *input = buff;
 	char *json_buf = NULL;
@@ -2042,7 +2125,6 @@ void draw_object(char *datacfg, char *cfgfile, char *weightfile, char *filename,
 		darknet_fatal_error(DARKNET_LOC, "number of names in %s (%d) does not match classes=%d in %s", name_list, names_size, net.layers[net.n - 1].classes, cfgfile);
 	}
 
-	srand(2222222); /// @todo why??
 	char buff[256];
 	char *input = buff;
 
@@ -2135,9 +2217,16 @@ void draw_object(char *datacfg, char *cfgfile, char *weightfile, char *filename,
 
 		int nboxes = 0;
 		detection *dets = get_network_boxes(&net, sized.w, sized.h, thresh, 0, 0, 1, &nboxes, letter_box);
-		if (nms) {
-			if (l.nms_kind == DEFAULT_NMS) do_nms_sort(dets, nboxes, l.classes, nms);
-			else diounms_sort(dets, nboxes, l.classes, nms, l.nms_kind, l.beta_nms);
+		if (nms)
+		{
+			if (l.nms_kind == DEFAULT_NMS)
+			{
+				do_nms_sort(dets, nboxes, l.classes, nms);
+			}
+			else
+			{
+				diounms_sort(dets, nboxes, l.classes, nms, l.nms_kind, l.beta_nms);
+			}
 		}
 		draw_detections_v3(sized, dets, nboxes, thresh, names, l.classes, 1);
 		save_image(sized, "pre_predictions");
@@ -2185,7 +2274,6 @@ void run_detector(int argc, char **argv)
 	int show = find_arg(argc, argv, "-show");
 	int letter_box = find_arg(argc, argv, "-letter_box");
 	int map_points = find_int_arg(argc, argv, "-points", 0);
-	check_mistakes = find_arg(argc, argv, "-check_mistakes");
 	int show_imgs = find_arg(argc, argv, "-show_imgs");
 	int mjpeg_port = find_int_arg(argc, argv, "-mjpeg_port", -1);
 	int avgframes = find_int_arg(argc, argv, "-avgframes", 3);
