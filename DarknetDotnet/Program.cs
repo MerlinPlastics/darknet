@@ -28,9 +28,11 @@ namespace DarknetDotnet
 
 			Program p = new Program();
 
-			int trials = Int32.Parse(args[0]);
-			int concurrent = Int32.Parse(args[1]);
-			p.TestDetector(config, weights, names, gpu, imageFile, trials,concurrent);
+			//int trials = Int32.Parse(args[0]);
+			//int concurrent = Int32.Parse(args[1]);
+			//p.TestDetector(config, weights, names, gpu, imageFile, trials,concurrent);
+
+			p.TestNetworkBoxes(config, weights, names, gpu, imageFile);
 
 		}
 
@@ -108,6 +110,19 @@ namespace DarknetDotnet
 			Task.WaitAll(tasks.ToArray());
 		}
 
+		internal void TestNetworkBoxes(string config, string weights, string names, int gpu, string imageFile)
+		{
+			var mat = Cv2.ImRead(imageFile, ImreadModes.Color);
+			using (var detector = YoloDetector.CreateDetector(config, weights, names, 0))
+			{
+				int width, height, colors;
+				(width, height, colors) = detector.GetNetworkDimensions();
+
+				//mat = new Mat(height, width, MatType.CV_8UC3);
+				var results = detector.Detect(mat, 0.2f);
+				var detections = detector.GetNetworkBoxes(mat, 0.2f);
+			}
+		}
 
 		public static void MarshalUnmananagedArrayToStruct<T>(IntPtr unmanagedArray, long length, out T[] mangagedArray)
 		{

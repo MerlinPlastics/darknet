@@ -1251,7 +1251,7 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 			{
 				dets = get_network_boxes(&net, 1, 1, thresh, hier_thresh, 0, 0, &nboxes, letter_box);
 			}
-			//detection *dets = get_network_boxes(&net, val[t].w, val[t].h, thresh, hier_thresh, 0, 1, &nboxes, letter_box); // for letter_box=1
+
 			if (nms)
 			{
 				if (l.nms_kind == DEFAULT_NMS)
@@ -1263,8 +1263,6 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 					diounms_sort(dets, nboxes, l.classes, nms, l.nms_kind, l.beta_nms);
 				}
 			}
-
-			//if (l.embedding_size) set_track_id(dets, nboxes, thresh, l.sim_thresh, l.track_ciou_norm, l.track_history_size, l.dets_for_track, l.dets_for_show);
 
 			char labelpath[4096];
 			replace_image_to_label(path, labelpath);
@@ -1297,81 +1295,83 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 					float prob = dets[i].prob[class_id];
 					if (prob > 0.0f)
 					{
-						detections_count++;
-						detections = (box_prob*)xrealloc(detections, detections_count * sizeof(box_prob));
-						detections[detections_count - 1].b = dets[i].bbox;
-						detections[detections_count - 1].p = prob;
-						detections[detections_count - 1].image_index = image_index;
-						detections[detections_count - 1].class_id = class_id;
-						detections[detections_count - 1].truth_flag = 0;
-						detections[detections_count - 1].unique_truth_index = -1;
+						continue;
+					}
 
-						int truth_index = -1;
-						float max_iou = 0;
-						for (j = 0; j < num_labels; ++j)
-						{
-							box t = { truth[j].x, truth[j].y, truth[j].w, truth[j].h };
-							//printf(" IoU = %f, prob = %f, class_id = %d, truth[j].id = %d \n",
-							//    box_iou(dets[i].bbox, t), prob, class_id, truth[j].id);
-							float current_iou = box_iou(dets[i].bbox, t);
-							if (current_iou > iou_thresh && class_id == truth[j].id)
-							{
-								if (current_iou > max_iou)
-								{
-									max_iou = current_iou;
-									truth_index = unique_truth_count + j;
-								}
-							}
-						}
+					detections_count++;
+					detections = (box_prob*)xrealloc(detections, detections_count * sizeof(box_prob));
+					detections[detections_count - 1].b = dets[i].bbox;
+					detections[detections_count - 1].p = prob;
+					detections[detections_count - 1].image_index = image_index;
+					detections[detections_count - 1].class_id = class_id;
+					detections[detections_count - 1].truth_flag = 0;
+					detections[detections_count - 1].unique_truth_index = -1;
 
-						// best IoU
-						if (truth_index > -1)
-						{
-							detections[detections_count - 1].truth_flag = 1;
-							detections[detections_count - 1].unique_truth_index = truth_index;
-						}
-						else
-						{
-							// if object is difficult then remove detection
-							for (j = 0; j < num_labels_dif; ++j)
-							{
-								box t = { truth_dif[j].x, truth_dif[j].y, truth_dif[j].w, truth_dif[j].h };
-								float current_iou = box_iou(dets[i].bbox, t);
-								if (current_iou > iou_thresh && class_id == truth_dif[j].id)
-								{
-									--detections_count;
-									break;
-								}
-							}
-						}
+					int truth_index = -1;
+					float max_iou = 0;
+					for (j = 0; j < num_labels; ++j)
+					{
+						box t = { truth[j].x, truth[j].y, truth[j].w, truth[j].h };
 
-						// calc avg IoU, true-positives, false-positives for required Threshold
-						if (prob > thresh_calc_avg_iou)
+						float current_iou = box_iou(dets[i].bbox, t);
+						if (current_iou > iou_thresh && class_id == truth[j].id)
 						{
-							int found = 0;
-							for (int z = checkpoint_detections_count; z < detections_count - 1; ++z)
+							if (current_iou > max_iou)
 							{
-								if (detections[z].unique_truth_index == truth_index)
-								{
-									found = 1;
-									break;
-								}
-							}
-
-							if (truth_index > -1 && found == 0)
-							{
-								avg_iou += max_iou;
-								++tp_for_thresh;
-								avg_iou_per_class[class_id] += max_iou;
-								tp_for_thresh_per_class[class_id]++;
-							}
-							else
-							{
-								fp_for_thresh++;
-								fp_for_thresh_per_class[class_id]++;
+								max_iou = current_iou;
+								truth_index = unique_truth_count + j;
 							}
 						}
 					}
+
+					// best IoU
+					if (truth_index > -1)
+					{
+						detections[detections_count - 1].truth_flag = 1;
+						detections[detections_count - 1].unique_truth_index = truth_index;
+					}
+					else
+					{
+						// if object is difficult then remove detection
+						for (j = 0; j < num_labels_dif; ++j)
+						{
+							box t = { truth_dif[j].x, truth_dif[j].y, truth_dif[j].w, truth_dif[j].h };
+							float current_iou = box_iou(dets[i].bbox, t);
+							if (current_iou > iou_thresh && class_id == truth_dif[j].id)
+							{
+								--detections_count;
+								break;
+							}
+						}
+					}
+
+					// calc avg IoU, true-positives, false-positives for required Threshold
+					if (prob > thresh_calc_avg_iou)
+					{
+						int found = 0;
+						for (int z = checkpoint_detections_count; z < detections_count - 1; ++z)
+						{
+							if (detections[z].unique_truth_index == truth_index)
+							{
+								found = 1;
+								break;
+							}
+						}
+
+						if (truth_index > -1 && found == 0)
+						{
+							avg_iou += max_iou;
+							++tp_for_thresh;
+							avg_iou_per_class[class_id] += max_iou;
+							tp_for_thresh_per_class[class_id]++;
+						}
+						else
+						{
+							fp_for_thresh++;
+							fp_for_thresh_per_class[class_id]++;
+						}
+					}
+					
 				}
 			}
 
@@ -1622,10 +1622,6 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 		// send the result of this class to the C++ side of things so we can include it the right chart
 		Darknet::update_accuracy_in_new_charts(i, avg_precision);
 
-		// float class_precision = (float)tp_for_thresh_per_class[i] / ((float)tp_for_thresh_per_class[i] + (float)fp_for_thresh_per_class[i]);
-		// float class_recall = (float)tp_for_thresh_per_class[i] / ((float)tp_for_thresh_per_class[i] + (float)(truth_classes_count[i] - tp_for_thresh_per_class[i]));
-		//printf("Precision = %1.2f, Recall = %1.2f, avg IOU = %2.2f%% \n\n", class_precision, class_recall, avg_iou_per_class[i]);
-
 		mean_average_precision += avg_precision;
 	}
 
@@ -1671,10 +1667,7 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 	free(fp_for_thresh_per_class);
 
 	fprintf(stderr, "Total Detection Time: %d Seconds\n", (int)(time(0) - start));
-	printf("\nSet -points flag:\n");
-	printf(" `-points 101` for MS COCO \n");
-	printf(" `-points 11` for PascalVOC 2007 (uncomment `difficult` in voc.data) \n");
-	printf(" `-points 0` (AUC) for ImageNet, PascalVOC 2010-2012, your custom dataset\n");
+
 	if (reinforcement_fd != NULL)
 	{
 		fclose(reinforcement_fd);
@@ -1687,10 +1680,7 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
 
 	if (existing_net)
 	{
-		//set_batch_network(&net, initial_batch);
-		//free_network_recurrent_state(*existing_net);
 		restore_network_recurrent_state(*existing_net);
-		//randomize_network_recurrent_state(*existing_net);
 	}
 	else
 	{
@@ -1829,9 +1819,6 @@ void calc_anchors(char *datacfg, int num_of_clusters, int width, int height, int
 
 	/// @todo replace qsort() lowest priority
 	qsort((void*)anchors_data.centers.vals, num_of_clusters, 2 * sizeof(float), (__compar_fn_t)anchors_data_comparator);
-
-	//gen_anchors.py = 1.19, 1.99, 2.79, 4.60, 4.53, 8.92, 8.06, 5.29, 10.32, 10.66
-	//float orig_anch[] = { 1.19, 1.99, 2.79, 4.60, 4.53, 8.92, 8.06, 5.29, 10.32, 10.66 };
 
 	printf("\n");
 	float avg_iou = 0;

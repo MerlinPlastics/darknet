@@ -18,6 +18,13 @@ namespace DarknetDotnet
 		private bool disposedValue = false;
 		private Dictionary<int, string> classNames;
 
+		public Dictionary<int, string> ClassNames
+		{
+			get { return classNames; }
+			protected set { classNames = value; }
+		}
+
+
 		public YoloDetector(string configFile, string weightsFile, int gpu, Dictionary<int, string> classNames)
 		{
 			this.detector = InteropMethods.CreateDetector(configFile, weightsFile, gpu);
@@ -42,6 +49,51 @@ namespace DarknetDotnet
 			return ConvertUnmanagedBBoxContainer(resultPtr);
 		}
 
+		public IEnumerable<Detection> GetNetworkBoxes(Mat mat, float threshold = 0.2f)
+		{
+			if (mat == null || mat.CvPtr == IntPtr.Zero)
+				return Enumerable.Empty<Detection>();
+
+
+			var containerPtr = InteropMethods.DetectNetworkBoxesInteropDetectorPtr(detector, mat.CvPtr, threshold);
+			DetectionContainer container = Marshal.PtrToStructure<DetectionContainer>(containerPtr);
+
+			Detection[] detections = new Detection[container.size];
+
+			IntPtr current = container.detectionsPtr;
+
+			for (int i = 0; i < container.size; i++)
+			{
+				mydetection_t? myDetection = Marshal.PtrToStructure<mydetection_t>(current);
+				if (myDetection == null) continue;
+
+				Detection detection = new Detection
+				{
+					X = myDetection.Value.x,
+					Y = myDetection.Value.y,
+					W = myDetection.Value.w,
+					H = myDetection.Value.h,
+					Objectness = myDetection.Value.objectness
+				};
+
+				// Copy the probs array
+				if (myDetection.Value.prob != IntPtr.Zero)
+				{
+					float[] probs = new float[myDetection.Value.classes];
+					Marshal.Copy(myDetection.Value.prob, probs, 0, myDetection.Value.classes);
+				}
+
+				detections[i] = detection;
+
+				// Move to the next mydetection_t
+				current += Marshal.SizeOf<mydetection_t>();
+			}
+
+			return detections;
+
+		}
+
+
 		public TimeSpan SpeedTest(int trials = 1000)
 		{
 			var ms = InteropMethods.SpeedTest(detector, trials);
@@ -65,7 +117,7 @@ namespace DarknetDotnet
 			// to an array of managed structs
 			var container = Marshal.PtrToStructure<BboxContainer>(resultPtr);
 			MarshalUnmananagedArrayToStruct<bbox_t>(container.candidatesPtr, container.size, out bbox_t[] candidates);
-			InteropMethods.DisposeDetections(resultPtr);
+			InteropMethods.DisposeBBContainer(resultPtr);
 
 			// Convert the array to our objects
 			List<YoloItem> items = new List<YoloItem>();
@@ -88,6 +140,20 @@ namespace DarknetDotnet
 			}
 
 			return items;
+		}
+
+		private IEnumerable<Detection> ConvertUnmanagedDetectionContainer(nint resultPtr)
+		{
+			var container = Marshal.PtrToStructure<DetectionContainer>(resultPtr);
+			//MarshalUnmananagedArrayToStruct<mydetection_t>(container.detectionsPtr, container.size, out mydetection_t[] candidates);
+
+			var size = Marshal.SizeOf(container);
+			mydetection_t[] mangagedArray = new mydetection_t[container.size];
+
+
+			InteropMethods.DisposeDetectionsContainer(resultPtr);
+
+			return new List<Detection>();
 		}
 
 		protected virtual void Dispose(bool disposing)

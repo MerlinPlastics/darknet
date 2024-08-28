@@ -24,7 +24,6 @@ struct bbox_t {
 struct bbox_t_container_ptr {
 	size_t size;
 	bbox_t* candidates_ptr;
-	//bbox_t candidates[C_SHARP_MAX_OBJECTS];
 };
 
 struct bbox_t_container {
@@ -37,7 +36,18 @@ struct detector_gpu_t {
 	float* predictions;
 };
 
+struct mydetection_t {
+	float x, y, w, h;
+	int classes;
+	float objectness;
+	std::vector<float> probs;
+};
 
+struct detection_t_container_ptr {
+	size_t size;
+	//std::vector<mydetection_t> detections_ptr;
+	mydetection_t* detections_ptr; // Use raw pointer for C++ to C interface
+};
 
 class InteropDetector
 {
@@ -51,6 +61,9 @@ public:
 	std::vector<bbox_t> detect(std::string image_filename, float thresh = 0.2);
 	std::vector<bbox_t> detect(cv::Mat mat, float thresh = 0.2);
 	std::vector<bbox_t> detect(image image, float thresh = 0.2);
+
+	std::vector<mydetection_t> getnetworkboxes(image img, float thresh);
+	std::vector<mydetection_t> getnetworkboxes(cv::Mat mat, float thresh);
 
 	double speed(int trials);
 

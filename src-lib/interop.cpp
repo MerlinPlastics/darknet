@@ -64,6 +64,30 @@ extern "C" {
 		return container;
 	}
 
+	detection_t_container_ptr* DetectNetworkBoxesInteropDetectorPtr(InteropDetector* detector, cv::Mat* mat, float threshold) {
+
+		printf("DetectNetworkBoxesInteropDetectorPtr\n");
+		detection_t_container_ptr* container = (detection_t_container_ptr*)xmalloc(sizeof(detection_t_container_ptr));
+		container->size = 0;
+
+		printf("getting boxes\n");
+		std::vector<mydetection_t> detections = detector->getnetworkboxes(*mat, threshold);
+
+		printf("Got boxes: %l\n", detections.size());
+		container->size = detections.size();
+
+		container->detections_ptr = (mydetection_t*)xcalloc(container->size, sizeof(mydetection_t));
+
+		// Copy the detections to the container
+		for (size_t i = 0; i < container->size; i++) {
+			printf("** Copying over %i with classes %i", i, detections[i].classes);
+			container->detections_ptr[i] = detections[i];
+		}
+
+		return container;
+	}
+
+
 
 	int DetectFileInteropDetectorRef(InteropDetector* detector, const char* filename, float threshold, bbox_t_container& container) {
 
@@ -72,9 +96,12 @@ extern "C" {
 		for (size_t i = 0; i < detections.size(); ++i) {
 			container.candidates[i] = detections[i];
 		}
+		container.size = detections.size();
 
 		return detections.size();
 	}
+
+
 
 	int DetectMatInteropDetectorRef(InteropDetector* detector, cv::Mat* mat, float threshold, bbox_t_container& container) {
 
@@ -88,12 +115,18 @@ extern "C" {
 	}
 
 
-
-	int DisposeContainerInteropDetector(bbox_t_container_ptr* container) {
+	int DisposeBBoxContainerInteropDetector(bbox_t_container_ptr* container) {
 
 		if (container->candidates_ptr) {
 			free(container->candidates_ptr);
 		}
+
+		free(container);
+
+		return 1;
+	}
+
+	int DisposeDetectionsContainerInteropDetector(detection_t_container_ptr* container) {
 
 		free(container);
 
@@ -251,6 +284,99 @@ std::vector<bbox_t> InteropDetector::detect(image img, float thresh)
 
 	return bbox_vec;
 }
+
+
+std::vector<mydetection_t> InteropDetector::getnetworkboxes(cv::Mat mat, float thresh) {
+	if (mat.data == NULL)
+		throw std::runtime_error("Image is empty");
+
+	auto image_ptr = mat_to_image_resize(mat);
+
+	// Mat has its original size
+	auto results = getnetworkboxes(image_ptr, thresh);
+
+	free_image(image_ptr);
+
+	return results;
+}
+
+
+std::vector<mydetection_t> InteropDetector::getnetworkboxes(image img, float thresh)
+{
+	detector_gpu_t& detector_gpu = *static_cast<detector_gpu_t*>(detector_gpu_ptr.get());
+	network& net = detector_gpu.net;
+
+#ifdef GPU
+	int old_gpu_index;
+	cudaGetDevice(&old_gpu_index);
+	if (cur_gpu_id != old_gpu_index)
+		cudaSetDevice(net.gpu_index);
+
+	net.wait_stream = wait_stream;    // 1 - wait CUDA-stream, 0 - not to wait
+#endif
+
+	image sized;
+
+	if (net.w == img.w && net.h == img.h) {
+		sized = make_image(img.w, img.h, img.c);
+		memcpy(sized.data, img.data, img.w * img.h * img.c * sizeof(float));
+	}
+	else
+		sized = resize_image(img, net.w, net.h);
+
+	layer outputLayer = net.layers[net.n - 1];
+
+	float* X = sized.data;
+
+	float* prediction = network_predict(net, X);
+
+	int nboxes = 0;
+	int letterbox = 0;
+	float hier_thresh = 0.5;
+	detection* dets = get_network_boxes(&net, img.w, img.h, thresh, hier_thresh, 0, 1, &nboxes, letterbox);
+	if (nms) do_nms_sort(dets, nboxes, outputLayer.classes, nms);
+
+	std::vector<mydetection_t> detection_vec;
+	detection_vec.reserve(nboxes);
+
+	for (int i = 0; i < nboxes; ++i) {
+		printf("Doing %i\n", i);
+		mydetection_t det;
+		
+		box b = dets[i].bbox;
+		det.x = b.x;
+		det.y = b.y;
+		det.w = b.w;
+		det.h = b.h;
+
+		det.classes = dets[i].classes;
+		det.objectness = dets[i].objectness;
+
+		printf("Doing %i probs with %i classes\n", i, dets[i].classes);
+
+		// Resize the vector to hold 'classes' number of probabilities
+		//det.probs.resize(dets[i].classes);
+
+		//// Correctly copy the values from dets[i].prob to det.probs
+		//std::copy(dets[i].prob, dets[i].prob + dets[i].classes, det.probs.begin());
+
+		printf("Doing %i adding to main\n", i);
+		detection_vec.push_back(det);
+	}
+
+	free_detections(dets, nboxes);
+	if (sized.data)
+		free(sized.data);
+
+#ifdef GPU
+	if (cur_gpu_id != old_gpu_index)
+		cudaSetDevice(old_gpu_index);
+#endif
+
+
+	return detection_vec;
+}
+
 
 double InteropDetector::speed(int trials)
 {

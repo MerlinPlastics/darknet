@@ -20,6 +20,17 @@ namespace DarknetDotnet
 
 		}
 
+
+		[StructLayout(LayoutKind.Sequential)]
+		internal struct mydetection_t
+		{
+			public float x, y, w, h;
+			public int classes;
+			public float objectness;
+			public IntPtr prob; // Pointer to float array
+		}
+
+
 		[StructLayout(LayoutKind.Sequential)]
 		internal struct BboxContainer
 		{
@@ -27,6 +38,15 @@ namespace DarknetDotnet
 
 			public IntPtr candidatesPtr;
 		}
+
+
+		[StructLayout(LayoutKind.Sequential)]
+		internal struct DetectionContainer
+		{
+			public long size;
+			public IntPtr detectionsPtr;
+		}
+
 
 		[StructLayout(LayoutKind.Sequential)]
 		internal struct BboxContainerRef
@@ -37,10 +57,9 @@ namespace DarknetDotnet
 			public bbox_t[] candidates;
 		}
 
-
 		private const string DarknetLibraryName = @"x64\darknet.dll";
 
-		
+
 		[DllImport(DarknetLibraryName, EntryPoint = "CreateInteropDetector")]
 		public static extern IntPtr CreateDetector(string configurationFilename, string weightsFilename, int gpu);
 
@@ -55,6 +74,10 @@ namespace DarknetDotnet
 
 		[DllImport(DarknetLibraryName, EntryPoint = "DetectMatInteropDetectorPtr")]
 		public static extern IntPtr DetectFromMatPtr(IntPtr detector, IntPtr mat, float threshold);
+
+		// Get Network Boxes with pointer-based output
+		[DllImport(DarknetLibraryName, EntryPoint = "DetectNetworkBoxesInteropDetectorPtr", CallingConvention = CallingConvention.Cdecl)]
+		public static extern IntPtr DetectNetworkBoxesInteropDetectorPtr(IntPtr detector, IntPtr mat, float threshold);
 
 
 		// Detection with array reference based output
@@ -74,8 +97,11 @@ namespace DarknetDotnet
 		public static extern int DisposeDetector(IntPtr detector);
 
 
-		[DllImport(DarknetLibraryName, EntryPoint = "DisposeContainerInteropDetector")]
-		public static extern int DisposeDetections(IntPtr detections);
+		[DllImport(DarknetLibraryName, EntryPoint = "DisposeBBoxContainerInteropDetector")]
+		public static extern int DisposeBBContainer(IntPtr detections);
+
+		[DllImport(DarknetLibraryName, EntryPoint = "DisposeDetectionsContainerInteropDetector")]
+		public static extern int DisposeDetectionsContainer(IntPtr detections);
 
 	}
 }
