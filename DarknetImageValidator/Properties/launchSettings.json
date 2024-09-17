@@ -1,0 +1,14 @@
+{
+  "profiles": {
+	"DarknetImageValidator": {
+		"commandName": "Project",
+		"commandLineArgs": "-c cfg-y4-smaller.cfg -w cfg-y4-smaller_final.weights -d cfg-y4-smaller.data",
+		"workingDirectory": "C:\\training\\encorp"
+	},
+	"Try2": {
+		"commandName": "Project",
+		"commandLineArgs": "-c cfg-y4-smaller.cfg -w .\\weights\\cfg-y4-smaller_final.weights -d all-data.data",
+		"workingDirectory": "C:\\training\\encorp"
+	}
+  }
+}

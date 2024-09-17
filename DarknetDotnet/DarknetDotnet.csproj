@@ -4,7 +4,7 @@
 		<TargetFramework>net8.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<OutputType>Exe</OutputType>
+		<OutputType>Library</OutputType>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -12,26 +12,38 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Update="calset.cfg">
+		<None Update="aluminum.avi-00308.txt">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
-		<None Update="calset.names">
+		<None Update="calset.cfg">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
 		<None Update="calset_final.weights">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
-		<None Update="image.jpg">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		<None Update="cfg-y4-smaller.data">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
-		<None Update="LegoGears.cfg">
+		<None Update="cfg-y4-smaller_final.weights">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="image.jpg">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
 		<None Update="LegoGears.names">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
-		<None Update="LegoGears_best.weights">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		<None Update="mixed-01-08202024080204-0000.avi-00448.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="mixed-01-08202024080204-0000.avi-00770.png">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="mixed.png">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="test.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
 	</ItemGroup>
 

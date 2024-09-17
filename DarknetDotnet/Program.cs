@@ -14,17 +14,17 @@ namespace DarknetDotnet
 	{
 		public static void Main(string[] args)
 		{
-			//string config = "LegoGears.cfg";
-			//string weights = "LegoGears_best.weights";
-			//string names = "LegoGears.names";
+			string config = "cfg-y4-smaller.cfg";
+			string weights = "cfg-y4-smaller_final.weights";
+			string names = "cfg-y4-smaller.names";
 
-			string config = "calset.cfg";
-			string weights = "calset_final.weights";
-			string names = "calset.names";
+			//string config = "calset.cfg";
+			//string weights = "calset_final.weights";
+			//string names = "calset.names";
 
 			int gpu = 0;
 
-			string imageFile = @"image.jpg";
+			//string imageFile = @"image.jpg";
 
 			Program p = new Program();
 
@@ -32,8 +32,8 @@ namespace DarknetDotnet
 			//int concurrent = Int32.Parse(args[1]);
 			//p.TestDetector(config, weights, names, gpu, imageFile, trials,concurrent);
 
-			p.TestNetworkBoxes(config, weights, names, gpu, imageFile);
-
+			//p.TestNetworkBoxes(config, weights, names, gpu, imageFile);
+			p.TestValidator(config, weights, names, gpu);
 		}
 
 		internal void TestDetector(string config, string weights, string names, int gpu, string imageFile, int trials, int concurrent)
@@ -140,6 +140,15 @@ namespace DarknetDotnet
 
 		}
 
+		public void TestValidator(string config, string weights, string names, int gpu)
+		{
+			var validator = new Validator(config, weights, names, gpu);
+			var imageFile = "mixed.png";
+			var truthsFile = "mixed.txt";
 
+			var stats = validator.ValidateImage(".", imageFile, truthsFile, 0.5f, 0.25f);
+
+			validator.PrintStats(stats);
+		}
 	}
 }

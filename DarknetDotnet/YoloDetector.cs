@@ -73,15 +73,17 @@ namespace DarknetDotnet
 					Y = myDetection.Value.y,
 					W = myDetection.Value.w,
 					H = myDetection.Value.h,
-					Objectness = myDetection.Value.objectness
+					Objectness = myDetection.Value.objectness,
+					ClassCount = myDetection.Value.classes
 				};
 
 				// Copy the probs array
-				if (myDetection.Value.prob != IntPtr.Zero)
-				{
-					float[] probs = new float[myDetection.Value.classes];
-					Marshal.Copy(myDetection.Value.prob, probs, 0, myDetection.Value.classes);
-				}
+
+				detection.Probabilities = myDetection.Value.prob
+											.Take(detection.ClassCount)	// First N items of the 1000-item array
+											.Select((item, index) => new { index, item })
+											.ToDictionary(x => x.index, x => x.item);
+
 
 				detections[i] = detection;
 

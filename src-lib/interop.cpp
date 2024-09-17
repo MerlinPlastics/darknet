@@ -66,21 +66,21 @@ extern "C" {
 
 	detection_t_container_ptr* DetectNetworkBoxesInteropDetectorPtr(InteropDetector* detector, cv::Mat* mat, float threshold) {
 
-		printf("DetectNetworkBoxesInteropDetectorPtr\n");
+		//printf("DetectNetworkBoxesInteropDetectorPtr\n");
 		detection_t_container_ptr* container = (detection_t_container_ptr*)xmalloc(sizeof(detection_t_container_ptr));
 		container->size = 0;
 
-		printf("getting boxes\n");
+		//printf("getting boxes\n");
 		std::vector<mydetection_t> detections = detector->getnetworkboxes(*mat, threshold);
 
-		printf("Got boxes: %l\n", detections.size());
+		//printf("Got boxes: %l\n", detections.size());
 		container->size = detections.size();
 
 		container->detections_ptr = (mydetection_t*)xcalloc(container->size, sizeof(mydetection_t));
 
 		// Copy the detections to the container
 		for (size_t i = 0; i < container->size; i++) {
-			printf("** Copying over %i with classes %i", i, detections[i].classes);
+			//printf("** Copying over %i with classes %i\n", i, detections[i].classes);
 			container->detections_ptr[i] = detections[i];
 		}
 
@@ -334,13 +334,17 @@ std::vector<mydetection_t> InteropDetector::getnetworkboxes(image img, float thr
 	int letterbox = 0;
 	float hier_thresh = 0.5;
 	detection* dets = get_network_boxes(&net, img.w, img.h, thresh, hier_thresh, 0, 1, &nboxes, letterbox);
-	if (nms) do_nms_sort(dets, nboxes, outputLayer.classes, nms);
+	//if (nms) do_nms_sort(dets, nboxes, outputLayer.classes, nms);
 
 	std::vector<mydetection_t> detection_vec;
 	detection_vec.reserve(nboxes);
 
 	for (int i = 0; i < nboxes; ++i) {
 		printf("Doing %i\n", i);
+
+		if (dets[i].objectness == 0)
+			continue;
+
 		mydetection_t det;
 		
 		box b = dets[i].bbox;
@@ -352,7 +356,12 @@ std::vector<mydetection_t> InteropDetector::getnetworkboxes(image img, float thr
 		det.classes = dets[i].classes;
 		det.objectness = dets[i].objectness;
 
-		printf("Doing %i probs with %i classes\n", i, dets[i].classes);
+		//printf("Doing %i probs with %i classes\n", i, dets[i].classes);
+		//det.probs = (float *)xcalloc(C_SHARP_MAX_OBJECTS, sizeof(float));
+
+		// Copy over the probabilities
+		memcpy(det.probs, dets[i].prob, dets[i].classes * sizeof(float));
+
 
 		// Resize the vector to hold 'classes' number of probabilities
 		//det.probs.resize(dets[i].classes);

@@ -784,11 +784,15 @@ void do_nms_obj(detection *dets, int total, int classes, float thresh)
 	}
 }
 
+// Non-maximal-suppression.  Ignores detections with objectness = 0,
+// sorts detections based on probability, then sets prob to 0
+// for each class where this box overlaps a higher-ranked box
 void do_nms_sort(detection *dets, int total, int classes, float thresh)
 {
 	// this is called from everywhere
 	TAT(TATPARMS);
 
+	// Move detections with a 0 objectness to the back, then later ignore
 	int k = total - 1;
 	for (int i = 0; i <= k; ++i)
 	{

@@ -18,5 +18,5 @@ __pycache__/
 *.aps
 
 # C-sharp build results
-DarknetDotnet/[Bb]in/
-DarknetDotnet/[Oo]bj/
+[Bb]in/
+[Oo]bj/

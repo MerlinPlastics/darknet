@@ -13,5 +13,20 @@ namespace DarknetDotnet
 		{
 			return rect.Width * rect.Height;
 		}
+
+		public static float IOU(this RectangleF value, RectangleF other)
+		{
+			float intersection = RectangleF.Intersect(value, other).Area();
+			//float union = RectangleF.Union(value, other).Area() - intersection;
+			float union = value.Area() + other.Area() - intersection;
+
+
+			if (union <= 0)
+			{
+				return 0;
+			}
+
+			return intersection / union;
+		}
 	}
 }

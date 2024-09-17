@@ -27,7 +27,9 @@ namespace DarknetDotnet
 			public float x, y, w, h;
 			public int classes;
 			public float objectness;
-			public IntPtr prob; // Pointer to float array
+
+			[MarshalAs(UnmanagedType.ByValArray, SizeConst = 1000)]
+			public float[] prob; // Pointer to float array
 		}
 
 

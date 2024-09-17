@@ -40,7 +40,7 @@ struct mydetection_t {
 	float x, y, w, h;
 	int classes;
 	float objectness;
-	std::vector<float> probs;
+	float probs[C_SHARP_MAX_OBJECTS] = { 0 };
 };
 
 struct detection_t_container_ptr {
