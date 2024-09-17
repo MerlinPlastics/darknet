@@ -3,6 +3,8 @@
 
 Darknet::ArgsAndParms::~ArgsAndParms()
 {
+	TAT(TATPARMS);
+
 	return;
 }
 
@@ -10,6 +12,8 @@ Darknet::ArgsAndParms::~ArgsAndParms()
 Darknet::ArgsAndParms::ArgsAndParms() :
 	ArgsAndParms("", "")
 {
+	TAT(TATPARMS);
+
 	return;
 }
 
@@ -23,6 +27,8 @@ Darknet::ArgsAndParms::ArgsAndParms(const std::string & n1, const std::string & 
 	arg_index		(-1					),
 	value			(0.0f				)
 {
+	TAT(TATPARMS);
+
 	return;
 }
 
@@ -30,15 +36,29 @@ Darknet::ArgsAndParms::ArgsAndParms(const std::string & n1, const std::string & 
 Darknet::ArgsAndParms::ArgsAndParms(const std::string & n1, const EType t, const std::string & txt) :
 	ArgsAndParms(n1, "", txt)
 {
+	TAT(TATPARMS);
+
 	type = t;
 
 	return;
 }
 
 
+Darknet::ArgsAndParms::ArgsAndParms(const std::string & n1, const std::string & n2, const int i, const std::string & txt) :
+	ArgsAndParms(n1, n2, txt)
+{
+	TAT(TATPARMS);
+
+	expect_parm	= true;
+	value		= i;
+}
+
+
 Darknet::ArgsAndParms::ArgsAndParms(const std::string & n1, const std::string & n2, const float f, const std::string & txt) :
 	ArgsAndParms(n1, n2, txt)
 {
+	TAT(TATPARMS);
+
 	expect_parm	= true;
 	value		= f;
 
@@ -48,6 +68,8 @@ Darknet::ArgsAndParms::ArgsAndParms(const std::string & n1, const std::string & 
 
 const Darknet::SArgsAndParms & Darknet::get_all_possible_arguments()
 {
+	TAT(TATPARMS);
+
 	static const SArgsAndParms all =
 	{
 		ArgsAndParms("3d"			, ArgsAndParms::EType::kCommand, "Pass in 2 images as input."),
@@ -102,20 +124,23 @@ const Darknet::SArgsAndParms & Darknet::get_all_possible_arguments()
 		ArgsAndParms("verbose"	, "show_details"), // I originally didn't know about "show_details" when I implemented "verbose"
 
 		// other options
+
+		ArgsAndParms("camera"	, "c"			, 0		),
+		ArgsAndParms("dontshow"	, "noshow"				),
+		ArgsAndParms("thresh"	, "threshold"	, 0.24f	),
+
 		ArgsAndParms("avgframes"			), //-- takes an int  3
 		ArgsAndParms("benchmark"			),
 		ArgsAndParms("benchmarklayers"		),
 		ArgsAndParms("checkmistakes"		),
 		ArgsAndParms("clear"				),
 		ArgsAndParms("dontdrawbbox"			),
-		ArgsAndParms("dontshow"	, "noshow"	),
 		ArgsAndParms("jsonport"				),
 		ArgsAndParms("letterbox"			),
 		ArgsAndParms("mjpegport"			), //-- takes an int?
 		ArgsAndParms("points"				), //-- takes an int?  0
 		ArgsAndParms("show"					),
 		ArgsAndParms("showimgs"				),
-		ArgsAndParms("thresh"	, "threshold", 0.24f),
 		ArgsAndParms("httpposthost"			),
 		ArgsAndParms("timelimitsec"			),
 		ArgsAndParms("outfilename"			),
@@ -123,7 +148,7 @@ const Darknet::SArgsAndParms & Darknet::get_all_possible_arguments()
 		ArgsAndParms("prefix"				),
 		ArgsAndParms("iouthresh"			),
 		ArgsAndParms("hier"					),
-		ArgsAndParms("c"					),
+//		ArgsAndParms("c"					),
 		ArgsAndParms("s"					),
 		ArgsAndParms("numofclusters"		),
 		ArgsAndParms("width"				),
@@ -139,6 +164,8 @@ const Darknet::SArgsAndParms & Darknet::get_all_possible_arguments()
 
 void Darknet::display_usage()
 {
+	TAT(TATPARMS);
+
 	const auto & all = Darknet::get_all_possible_arguments();
 
 	std::cout

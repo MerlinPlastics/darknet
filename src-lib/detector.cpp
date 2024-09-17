@@ -1836,11 +1836,15 @@ void run_detector(int argc, char** argv)
 		 *
 		 *		darknet detector demo cfg/coco.data cfg/yolov4-tiny.cfg yolov4-tiny.weights http://10.10.201.247:8888/test/
 		 *		darknet detector demo driving.data driving.cfg driving_best.weights http://10.10.201.247:8888/test/
+		 *
+		 *	Webcam:
+		 *
+		 *		darknet detector demo cfg/coco.data cfg/yolov4-tiny.cfg yolov4-tiny.weights -c 0
 		 */
 		list* options = read_data_cfg(datacfg);
 		int classes = option_find_int(options, "classes", 20);
-		char* name_list = option_find_str(options, "names", nullptr);
-		char** names = get_labels(name_list);
+		char *name_list = option_find_str(options, "names", nullptr);
+		char **names = get_labels(name_list);
 		if (input_fn)
 		{
 			if (strlen(input_fn) > 0)
